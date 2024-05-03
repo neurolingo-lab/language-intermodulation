@@ -68,11 +68,11 @@ if rate is None:
     rate = 60  # couldn't get a reliable measure so guess
 print(f"Frame rate: {rate:0.5f} Hz")
 expInfo["frameRate"] = rate
-win.hideMessage()
+win.hideMessage()  # looks like this does nothing
 
 frameTolerance = 0.001  # how close to onset before 'same' frame
 # get frame duration from frame rate in expInfo
-if "frameRate" in expInfo and expInfo["frameRate"] is not None:
+if expInfo.get("frameRate", None) is not None:
     frameDur = 1.0 / expInfo["frameRate"]
 else:
     raise ValueError("Frame rate not measured correctly. Check hardware.")
@@ -142,13 +142,21 @@ for key, val in timing_info.items():
 continueRoutine = True
 routineForceEnd = False
 actual_framerate = {0: [], 1: []}
-globalClock = core.Clock()
-ioServer.syncClock(globalClock)
-routineTimer = core.Clock()
+globalClock = core.Clock()  # duplicate from line 110-112
+ioServer.syncClock(globalClock)  # duplicate from line 110-112
+routineTimer = core.Clock()  # duplicate from line 110-112
 win.flip()
 actual_t = {0: [], 1: []}
 while continueRoutine and routineTimer.getTime() < (WORDSTART + WORDLEN):
     # get current time
+    # Personaly, I would use psychtoolbox to manage time. The method win.getFutureFlipTime() accepts
+    # clock="ptb" as argument, which then returns the time as given by psychtoolbox. I would compare
+    # this returned time with ptb.GetSecs(). 
+    # The rational is that many people have told me that the timings in psychtoolbox are more 
+    # reliable/precise, that psychopy encourages people to use psychtoolbox for audio outputs heavily
+    # (see: https://psychopy.org/api/sound/playback.html#ptb-audio-latency), that psychopy's clock
+    # implementation uses psychtoolbox if available 
+    # (see: https://www.psychopy.org/_modules/psychopy/clock.html).
     t = routineTimer.getTime()
     tThisFlip = win.getFutureFlipTime(clock=routineTimer)
     tThisFlipGlobal = win.getFutureFlipTime(clock=None)
