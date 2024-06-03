@@ -2,9 +2,12 @@
 General task-related utility functions.
 """
 
+import numpy as np
+import psychopy.constants
 import psychopy.core
 import psychopy.visual
-import psychopy.constants
+
+import intermodulation.stimuli as stimuli
 
 
 def start_stim(
@@ -30,7 +33,7 @@ def start_stim(
         The clock being used as timing. **Must be the same clock used to set t_start and
         t_last_flip attributes.**
     """
-    stim.setAutoDraw(True) # Set the stimulus to draw every frame (i.e., to be visible)
+    stim.setAutoDraw(True)  # Set the stimulus to draw every frame (i.e., to be visible)
     # Set the time at which the stimulus was started (next flip time)
     stim.t_start = None
     stim.win.timeOnFlip(stim, "t_start")
@@ -93,7 +96,7 @@ def flicker_stim(
 
 def stop_stim(
     stim: psychopy.visual.BaseVisualStim,
-    frame: int,        
+    frame: int,
 ):
     """
     Stop a stimulus while storing stop times and frames to the new attributes `t_stop` and `frame_stop`.
@@ -112,9 +115,73 @@ def stop_stim(
     return
 
 
+def start_experiment(window_config):
+    """
+    Function to start the experiment by creating a window and setting up the clock.
+
+    Returns
+    -------
+    win : psychopy.visual.Window
+        The window object created for the experiment.
+    globalClock : psychopy.core.Clock
+        The clock object created for the experiment.
+    """
+    win = psychopy.visual.Window(**window_config)
+    globalClock = psychopy.core.Clock()
+    timinglog = {
+        "trial_starts": [],
+        "trial_ends": [],
+    }
+    return win, globalClock
+
+
+def start_trial(
+    window: psychopy.visual.Window,
+    framerate: float,
+    words: tuple[str, str] = ["test", "words"],
+    flicker_rates: tuple[float, float] = np.array([17, 19]),
+    text_config: dict[str, str | float | None] = stimuli.TEXT_CONFIG,
+    dot_config: dict[tuple[float, float], str, str, str, str, bool] = stimuli.DOT_CONFIG,
+    word_sep: int = stimuli.WORD_SEP,
+):
+    """
+    Function to start a trial by creating the necessary stimulus objects.
+
+    Parameters
+    ----------
+    window : psychopy.visual.Window
+        The window object to draw the stimuli to.
+    framerate : float
+        The framerate of the window.
+    words : tuple[str, str]
+        The words to display on the screen.
+    flicker_rates : tuple[float, float]
+        The flicker rates for the words.
+    text_config : dict[str, str | float | None]
+        The configuration for the text stimuli.
+    word_sep : int
+        The separation between the words.
+
+    Returns
+    -------
+    components : TrialComponents
+        The trial components object that contains the stimuli.
+    """
+    components = stimuli.Trial(
+        window=window,
+        framerate=framerate,
+        words=words,
+        flicker_rates=flicker_rates,
+        text_config=text_config,
+        dot_config=dot_config,
+        word_sep=word_sep,
+    )
+    return components
+
+
 def quit_experiment(
-        device_manager,
-        window,
+    device_manager,
+    window,
 ):
     """
     Function to quit the experiment on keypress of 'q' or 'escape'. Only closes the window,

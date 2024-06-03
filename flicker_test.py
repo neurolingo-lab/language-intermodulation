@@ -3,7 +3,7 @@ from psychopy import visual, core, data, logging, hardware, constants
 import psychopy.iohub as io
 import numpy as np
 import pandas as pd
-from intermodulation import utils
+from intermodulation import events
 
 WORDSTART = 1.0  # seconds
 WORDLEN = 6.0  # seconds
@@ -163,7 +163,7 @@ while continueRoutine and routineTimer.getTime() < (WORDSTART + WORDLEN):
     frameN = frameN + 1  # number of completed frames (so 0 is the first frame)
 
     # Check for quit (the Esc key)
-    if utils.quit_experiment(deviceManager, win):
+    if events.quit_experiment(deviceManager, win):
         break
 
     # update/draw components on each frame
@@ -172,19 +172,19 @@ while continueRoutine and routineTimer.getTime() < (WORDSTART + WORDLEN):
         word_flicker_n = flicker_n[i]
         match (word.status, frameN):  # Check the status of the word and act accordingly
             case [constants.NOT_STARTED, start_n]:
-                utils.start_stim(word, frameN)
+                events.start_stim(word, frameN)
             case [constants.STARTED, _] | [constants.FINISHED, _] if frameN > start_n:
-                flipped = utils.flicker_stim(word, word_flicker_n, frameN)
+                flipped = events.flicker_stim(word, word_flicker_n, frameN)
                 if flipped:
                     actual_t[i].append(word.t_last_switch)
             case [_, end_n]:
-                utils.stop_stim(word, frameN)
+                events.stop_stim(word, frameN)
 
     match (fixation_dot.status, frameN):  # Start fixation dot or end the trial at trial_end_n
         case [constants.NOT_STARTED, _]:
-            utils.start_stim(fixation_dot, frameN)
+            events.start_stim(fixation_dot, frameN)
         case [_, trial_end_n]:
-            utils.quit_experiment(deviceManager, win)
+            events.quit_experiment(deviceManager, win)
 
     win.flip()
 
