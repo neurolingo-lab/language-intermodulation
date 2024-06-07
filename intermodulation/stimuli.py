@@ -108,12 +108,16 @@ class Trial:
                 win=self.win,
                 text=words[0],
                 pos=(-(word_sep / 2), 0),
+                anchorHoriz="right",
+                alignText="right",
                 **text_config,
             ),
             1: TextStim(
                 win=self.win,
                 text=words[1],
                 pos=(word_sep / 2, 0),
+                anchorHoriz="left",
+                alignText="left",
                 **text_config,
             ),
         }

@@ -11,8 +11,10 @@ import psychopy.constants
 import psychopy.core
 import psychopy.logging
 import psychopy.visual
+from psychopy.hardware.keyboard import Keyboard
 
 import intermodulation.stimuli as stimuli
+from intermodulation.events import ExperimentLog, MarkovState
 
 states = SimpleNamespace(
     EXPSTART=-1,
@@ -28,59 +30,6 @@ states = SimpleNamespace(
 
 
 @dataclass
-class MarkovState:
-    """
-    Markov state class to allow for both deterministic and probabilistic state transitions,
-    computing current state duration when determining the next state.
-
-    Can deal with:
-     - Deterministic state transitions
-       - `next` is a single integer for the state
-     - Probabilistic state transitions
-       - `next` is a tuple of two integers for the possible next states
-       - `probs` is a tuple of two floats for the probabilities of those states
-
-     - Fixed duration states
-       - `dur` is a single float for the duration of the state
-     - Variable duration states
-       - `dur` is a tuple of two floats
-       - `durfunc` is a callable that takes the two floats (bounds, characteristics of
-         a distribution, etc.) and returns a duration
-    """
-
-    next: int | tuple[int, int]
-    dur: float | tuple[float, float]
-    probs: None | tuple[float, float] = None
-    durfunc: None | Callable = None
-    rng: np.random.Generator = np.random.default_rng()
-
-    def __post_init__(self):
-        if hasattr(self.next, "__len__"):
-            if self.probs is None:
-                raise TypeError(
-                    "Probabilities must be provided for " "probabilistic state transitions."
-                )
-            if len(self.next) != 2 or len(self.probs) != 2:
-                raise ValueError("Probabilistic state transitions must have two possible states.")
-        if hasattr(self.dur, "__len__"):
-            if self.durfunc is None:
-                raise TypeError("Duration function must be provided for variable duration states.")
-            if len(self.dur) != 2:
-                raise ValueError("Variable duration states must have two duration bounds.")
-
-    def get_next(self):
-        if self.probs is None:
-            next = self.next
-        else:
-            next = self.next[self.rng.choice([0, 1], p=self.probs)]
-        if hasattr(self.dur, "__len__"):
-            dur = self.durfunc(*self.dur)
-        else:
-            dur = self.dur
-        return next, dur
-
-
-@dataclass
 class ExperimentSpec:
     flicker_rates: tuple[float, float]
     flicker_map: tuple[int, int]
@@ -89,11 +38,12 @@ class ExperimentSpec:
     fixation_t: float
     word_t: float
     n_blocks: int
-    word_sep: int
+    word_sep: float
     newblock_t: float = 3.0
     query_t: float = 2.0
     query_p: float = 0.0
     break_t: float = 3.0
+    keyboard: Keyboard = Keyboard()
 
     def __post_init__(self):
         self.flicker_rates = np.array(self.flicker_rates)
@@ -125,18 +75,6 @@ class ExperimentState:
         if len(self.queue) == 0:
             self.build_queue()
 
-    def next_state(self):
-        if len(self.queue) == 0:
-            raise AttributeError("Queue is empty. Cannot get next state.")
-
-        self.current = self.queue.pop(0)[0]
-        if len(self.queue) == 0:
-            self.next = None
-            self.t_next = None
-        else:
-            self.next = self.queue[0][0]
-            self.t_next = self.queue[0][1]
-
     def build_queue(self):
         if len(self.queue) != 0:
             raise AttributeError("Queue is not empty. Cannot build a new queue.")
@@ -151,6 +89,18 @@ class ExperimentState:
             new_next, new_t = self.transitions[self.queue[-1][0]].get_next()
             self.queue.append((new_next, new_t + self.queue[-1][1]))
 
+    def next_state(self):
+        if len(self.queue) == 0:
+            raise AttributeError("Queue is empty. Cannot get next state.")
+
+        self.current = self.queue.pop(0)[0]
+        if len(self.queue) == 0:
+            self.next = None
+            self.t_next = None
+        else:
+            self.next = self.queue[0][0]
+            self.t_next = self.queue[0][1]
+
     def next_trial(self):
         if len(self.queue) != 0:
             psychopy.logging.warn("Queue is not empty. Starting new trial anyways.")
@@ -158,12 +108,12 @@ class ExperimentState:
         self.trial += 1
         self.block_trial += 1
         if self.block_trial >= len(self.blockwords):
-            self.new_block()
+            self.next_block()
         self.build_queue()
         self.flicker_map = self.rng.permutation(self.flicker_map)
         self.next_state()
 
-    def new_block(self):
+    def next_block(self):
         self.blockwords = self.rng.permutation(len(self.blockwords))
         self.block += 1
         self.block_trial = 0
@@ -206,6 +156,16 @@ class WordFreqTagging:
 
         # Initialize the internal state
         self.rng = np.random.default_rng(random_seed)
+        self.generate_transitions(expspec)
+        self.state = ExperimentState(
+            transitions=self.transitions,
+            expspec=expspec,
+            blockwords=self.words.index.to_numpy(),
+            clock=psychopy.core.Clock(),
+            rng=self.rng,
+        )
+
+    def generate_transitions(self, expspec):
         self.transitions = {
             states.FIXATION: MarkovState(next=states.WORDPAIR, dur=expspec.fixation_t),
             states.WORDPAIR: MarkovState(
@@ -223,13 +183,6 @@ class WordFreqTagging:
             states.BREAK: MarkovState(next=states.FIXATION, dur=expspec.break_t),
             states.FINISHED: MarkovState(next=states.FINISHED, dur=0.0),
         }
-        self.state = ExperimentState(
-            transitions=self.transitions,
-            expspec=expspec,
-            blockwords=self.words.index.to_numpy(),
-            clock=psychopy.core.Clock(),
-            rng=self.rng,
-        )
 
     def start_trial(self):
         # Create the trial components
@@ -356,7 +309,8 @@ class WordFreqTagging:
                     futures.extend(updates)
             case (states.FINISHED, _):
                 return
-
+        if self.expspec.keyboard.getKeys(keyList=["escape"]):
+            self.state.current = states.FINISHED
         self.win.flip()
         asyncio.run(self._update_log(futures))
 
@@ -387,46 +341,3 @@ class WordFreqTagging:
     async def _update_log(self, futures):
         await asyncio.gather(*futures)
         return
-
-
-@dataclass
-class ExperimentLog:
-    trials: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
-    trial_states: dict[int, dict[int, list[tuple[float, bool]]]] = field(
-        default_factory=lambda: {0: defaultdict(list), 1: defaultdict(list)}
-    )
-
-    async def update(self, attrib, key, value, exp, key2=None):
-        value = self.parse_value(value, exp)
-
-        if key2 is None:
-            getattr(self, attrib)[key].append(value)
-        else:
-            getattr(self, attrib)[key][key2].append(value)
-
-    def parse_value(self, value, exp):
-        twoval = False
-        if isinstance(value, tuple):
-            twoval = True
-            secondval = value[1]
-            value = value[0]
-            if not isinstance(value, str):
-                raise ValueError(f"Invalid value string. Must have string in first position.")
-        if isinstance(value, str):
-            match value.split("."):
-                case ["fliptime"]:
-                    return1 = exp.last_flip
-                case ["state", subkey]:
-                    return1 = getattr(exp.state, subkey)
-                case [other]:
-                    return1 = other
-        else:
-            return1 = value
-        if twoval:
-            return return1, secondval
-        else:
-            return return1
-
-    def save(self, fn: str):
-        with open(fn, "wb") as fw:
-            pickle.dump({"trial_states": self.trial_states, "trials": self.trials}, fw)

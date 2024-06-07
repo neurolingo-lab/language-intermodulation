@@ -2,6 +2,11 @@
 General task-related utility functions.
 """
 
+import pickle
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Callable
+
 import numpy as np
 import psychopy.constants
 import psychopy.core
@@ -10,173 +15,100 @@ import psychopy.visual
 import intermodulation.stimuli as stimuli
 
 
-def start_stim(
-    stim: psychopy.visual.BaseVisualStim,
-    frame: int,
-):
-    """
-    Function to start a stimulus and set the necessary attributes for flicker_stim.
-
-    The stimulus object will gain the non-standard
-    attributes:
-     -`t_start` : global time at which stimulus was started (float)
-     -`t_last_flip` : global time at which the stimulus state last changed (float)
-     -`frame_start` : frame number at which the stimulus was started (int)
-     -`frame_last_flip` : frame number at which the stimulus state last changed (int)
-     -`state` : boolean indicating whether the stimulus is currently being displayed (bool)
-
-    Parameters
-    ----------
-    stim : psychopy.visual.BaseVisualStim
-        The stimulus object to start. Note above for non-standard attribute requirements.
-    clock : psychopy.core.Clock
-        The clock being used as timing. **Must be the same clock used to set t_start and
-        t_last_flip attributes.**
-    """
-    stim.setAutoDraw(True)  # Set the stimulus to draw every frame (i.e., to be visible)
-    # Set the time at which the stimulus was started (next flip time)
-    stim.t_start = None
-    stim.win.timeOnFlip(stim, "t_start")
-    # Set the time at which the stimulus state last changed (next flip time)
-    stim.t_last_switch = None
-    stim.win.timeOnFlip(stim, "t_last_switch")
-    # Set the frame number at which the stimulus was started
-    stim.frame_start = frame
-    # Set the frame number at which the stimulus state last changed
-    stim.frame_last_flip = frame
-    # Set the visible state of the stimulus to true for information (doesn't affect drawing)
-    stim.state = True
-    # Set the status of the stimulus to started
-    stim.status = psychopy.constants.STARTED
-    # Create an empty attribute for the stop time so win.timeOnFlip doesn't throw an error
-    stim.t_stop = None
-    return
-
-
-def flicker_stim(
-    stim: psychopy.visual.BaseVisualStim,
-    flicker_frames: float,
-    frame: int,
-):
-    """
-    Function to switch stimulus state at a given flicker rate.
-
-    The stimulus object should have the non-standard
-    attributes:
-     -`t_start` : global time at which stimulus was started (float)
-     -`t_last_switch` : global time at which the stimulus state last changed (float)
-     -`frame_start` : frame number at which the stimulus was started (int)
-     -`frame_last_switch` : frame number at which the stimulus state last changed (int)
-     -`state` : boolean indicating whether the stimulus is currently being displayed (bool)
-
-
-    Parameters
-    ----------
-    stim : psychopy.visual.BaseVisualStim
-        The stimulus object to flicker. Note above for non-standard attribute requirements.
-    flicker_frames : int
-        Number of frames between each flip of the stimulus state.
-    frame: int
-        Current frame number.
-    win : psychopy.visual.Window
-        The window that the stimulus is being drawn to.
-    """
-    # Calculate how many frames it's been since the stimulus started
-    frame_diff = frame - stim.frame_start
-    # If the difference is 0 the stimulus just started, so don't flicker. Otherwise if it's
-    # been an even multiple of flicker_frames since start, toggle the state.
-    if frame_diff > 0 and frame_diff % flicker_frames == 0:
-        stim.setAutoDraw(not stim.state)
-        stim.state = not stim.state
-        stim.win.timeOnFlip(stim, "t_last_switch")  # Make sure to update the last switch time
-        stim.frame_last_switch = frame
-        return True
-    return False
-
-
-def stop_stim(
-    stim: psychopy.visual.BaseVisualStim,
-    frame: int,
-):
-    """
-    Stop a stimulus while storing stop times and frames to the new attributes `t_stop` and `frame_stop`.
-
-    Parameters
-    ----------
-    stim : psychopy.visual.BaseVisualStim
-        Stimulus object to stop drawing
-    frame : int
-        Current frame number
-    """
-    stim.setAutoDraw(False)  # Stop drawing the stimulus
-    stim.win.timeOnFlip(stim, "t_stop")  # Set the time at which the stimulus was stopped
-    stim.frame_stop = frame  # Set the frame number at which the stimulus was stopped
-    stim.status = psychopy.constants.FINISHED  # Set the status of the stimulus to finished
-    return
-
-
-def start_experiment(window_config):
-    """
-    Function to start the experiment by creating a window and setting up the clock.
-
-    Returns
-    -------
-    win : psychopy.visual.Window
-        The window object created for the experiment.
-    globalClock : psychopy.core.Clock
-        The clock object created for the experiment.
-    """
-    win = psychopy.visual.Window(**window_config)
-    globalClock = psychopy.core.Clock()
-    timinglog = {
-        "trial_starts": [],
-        "trial_ends": [],
-    }
-    return win, globalClock
-
-
-def start_trial(
-    window: psychopy.visual.Window,
-    framerate: float,
-    words: tuple[str, str] = ["test", "words"],
-    flicker_rates: tuple[float, float] = np.array([17, 19]),
-    text_config: dict[str, str | float | None] = stimuli.TEXT_CONFIG,
-    dot_config: dict[tuple[float, float], str, str, str, str, bool] = stimuli.DOT_CONFIG,
-    word_sep: int = stimuli.WORD_SEP,
-):
-    """
-    Function to start a trial by creating the necessary stimulus objects.
-
-    Parameters
-    ----------
-    window : psychopy.visual.Window
-        The window object to draw the stimuli to.
-    framerate : float
-        The framerate of the window.
-    words : tuple[str, str]
-        The words to display on the screen.
-    flicker_rates : tuple[float, float]
-        The flicker rates for the words.
-    text_config : dict[str, str | float | None]
-        The configuration for the text stimuli.
-    word_sep : int
-        The separation between the words.
-
-    Returns
-    -------
-    components : TrialComponents
-        The trial components object that contains the stimuli.
-    """
-    components = stimuli.Trial(
-        window=window,
-        framerate=framerate,
-        words=words,
-        flicker_rates=flicker_rates,
-        text_config=text_config,
-        dot_config=dot_config,
-        word_sep=word_sep,
+@dataclass
+class ExperimentLog:
+    trials: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    trial_states: dict[int, dict[int, list[tuple[float, bool]]]] = field(
+        default_factory=lambda: {0: defaultdict(list), 1: defaultdict(list)}
     )
-    return components
+
+    async def update(self, attrib, key, value, exp, key2=None):
+        value = self.parse_value(value, exp)
+
+        if key2 is None:
+            getattr(self, attrib)[key].append(value)
+        else:
+            getattr(self, attrib)[key][key2].append(value)
+
+    def parse_value(self, value, exp):
+        twoval = False
+        if isinstance(value, tuple):
+            twoval = True
+            secondval = value[1]
+            value = value[0]
+            if not isinstance(value, str):
+                raise ValueError(f"Invalid value string. Must have string in first position.")
+        if isinstance(value, str):
+            match value.split("."):
+                case ["fliptime"]:
+                    return1 = exp.last_flip
+                case ["state", subkey]:
+                    return1 = getattr(exp.state, subkey)
+                case [other]:
+                    return1 = other
+        else:
+            return1 = value
+        if twoval:
+            return return1, secondval
+        else:
+            return return1
+
+    def save(self, fn: str):
+        with open(fn, "wb") as fw:
+            pickle.dump({"trial_states": self.trial_states, "trials": self.trials}, fw)
+
+
+@dataclass
+class MarkovState:
+    """
+    Markov state class to allow for both deterministic and probabilistic state transitions,
+    computing current state duration when determining the next state.
+
+    Can deal with:
+     - Deterministic state transitions
+       - `next` is a single integer for the state
+     - Probabilistic state transitions
+       - `next` is a tuple of two integers for the possible next states
+       - `probs` is a tuple of two floats for the probabilities of those states
+
+     - Fixed duration states
+       - `dur` is a single float for the duration of the state
+     - Variable duration states
+       - `dur` is a tuple of two floats
+       - `durfunc` is a callable that takes the two floats (bounds, characteristics of
+         a distribution, etc.) and returns a duration
+    """
+
+    next: int | tuple[int, int]
+    dur: float | tuple[float, float]
+    probs: None | tuple[float, float] = None
+    durfunc: None | Callable = None
+    rng: np.random.Generator = np.random.default_rng()
+
+    def __post_init__(self):
+        if hasattr(self.next, "__len__"):
+            if self.probs is None:
+                raise TypeError(
+                    "Probabilities must be provided for " "probabilistic state transitions."
+                )
+            if len(self.next) != 2 or len(self.probs) != 2:
+                raise ValueError("Probabilistic state transitions must have two possible states.")
+        if hasattr(self.dur, "__len__"):
+            if self.durfunc is None:
+                raise TypeError("Duration function must be provided for variable duration states.")
+            if len(self.dur) != 2:
+                raise ValueError("Variable duration states must have two duration bounds.")
+
+    def get_next(self):
+        if self.probs is None:
+            next = self.next
+        else:
+            next = self.next[self.rng.choice([0, 1], p=self.probs)]
+        if hasattr(self.dur, "__len__"):
+            dur = self.durfunc(*self.dur)
+        else:
+            dur = self.dur
+        return next, dur
 
 
 def quit_experiment(
