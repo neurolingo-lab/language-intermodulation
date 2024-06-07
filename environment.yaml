@@ -1,0 +1,19 @@
+name: intermod
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - tqdm
+  - matplotlib
+  - seaborn
+  - jupyter
+  - mne
+  - ipython
+  - black
+  - statsmodels
+  - pip:
+    - psychopy=2024.*
