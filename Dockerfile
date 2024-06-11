@@ -1,4 +1,4 @@
-FROM python:3.10-alpine
+FROM ubuntu:24.04
 
 LABEL description="Container with all necessary tools for running the language intermodulation \
     experiment, ingesting acquired data from MEG, MRI, and behavioral experiments, and running \
@@ -8,8 +8,18 @@ LABEL version="0.1"
 
 WORKDIR /data
 COPY ./ /data/
-RUN apk update && apk add bash git wget build-base
+ENV DEBIAN_FRONTEND=noninteractive \
+    DEBCONF_NONINTERACTIVE_SEEN=true
+RUN apt update && apt install -y build-essential qt6-base-dev wget
+RUN wget -O Miniforge3.sh \
+    "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+RUN bash Miniforge3.sh -b -p "/opt/conda"
 # gfortran pkgconfig cmake
 SHELL ["/bin/bash", "-c"]
-RUN pip install -U pip
-RUN pip install -e .[analysis]
+RUN /bin/bash -c "/opt/conda/bin/conda create -n intermod python=3.10 &&\
+    source /opt/conda/bin/activate intermod &&\
+    conda install wxpython &&\
+    pip install -e /data &&\
+    conda clean --all -f -y"
+ENTRYPOINT [ "/data/docker/entrypoint.sh" ]
+
