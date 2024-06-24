@@ -21,7 +21,6 @@ dependencies = [
     "seaborn",
     "jupyter",
     "mne",
-    "psychopy==2024.*"
 ]
 
 [project.optional-dependencies]
@@ -30,6 +29,14 @@ analysis = [
     "black",
     "statsmodels",
     "mne[full]",
+]
+experiment = [
+    "psychopy==2024.*"
+
+]
+full = [
+    "intermodulation[analysis]",
+    "intermodulation[experiment]",
 ]
 
 [tool.black]
