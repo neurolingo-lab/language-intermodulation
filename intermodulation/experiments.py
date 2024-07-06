@@ -188,7 +188,7 @@ class WordFreqTagging:
         # Create the trial components
         wordpair = self.words.loc[self.state.blockwords[self.state.block_trial]]
         flicker_map = self.state.flicker_map
-        self.trial = stimuli.Trial(
+        self.trial = stimuli.TwoWordStim(
             window=self.win,
             words=wordpair.iloc[:2].values,
             text_config=self.text_config,

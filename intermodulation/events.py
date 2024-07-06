@@ -17,6 +17,7 @@ import intermodulation.stimuli as stimuli
 
 @dataclass
 class ExperimentLog:
+    clock: psychopy.core.Clock
     trials: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
     trial_states: dict[int, dict[int, list[tuple[float, bool]]]] = field(
         default_factory=lambda: {0: defaultdict(list), 1: defaultdict(list)}
@@ -56,59 +57,6 @@ class ExperimentLog:
     def save(self, fn: str):
         with open(fn, "wb") as fw:
             pickle.dump({"trial_states": self.trial_states, "trials": self.trials}, fw)
-
-
-@dataclass
-class MarkovState:
-    """
-    Markov state class to allow for both deterministic and probabilistic state transitions,
-    computing current state duration when determining the next state.
-
-    Can deal with:
-     - Deterministic state transitions
-       - `next` is a single integer for the state
-     - Probabilistic state transitions
-       - `next` is a tuple of two integers for the possible next states
-       - `probs` is a tuple of two floats for the probabilities of those states
-
-     - Fixed duration states
-       - `dur` is a single float for the duration of the state
-     - Variable duration states
-       - `dur` is a tuple of two floats
-       - `durfunc` is a callable that takes the two floats (bounds, characteristics of
-         a distribution, etc.) and returns a duration
-    """
-
-    next: int | tuple[int, int]
-    dur: float | tuple[float, float]
-    probs: None | tuple[float, float] = None
-    durfunc: None | Callable = None
-    rng: np.random.Generator = np.random.default_rng()
-
-    def __post_init__(self):
-        if hasattr(self.next, "__len__"):
-            if self.probs is None:
-                raise TypeError(
-                    "Probabilities must be provided for " "probabilistic state transitions."
-                )
-            if len(self.next) != 2 or len(self.probs) != 2:
-                raise ValueError("Probabilistic state transitions must have two possible states.")
-        if hasattr(self.dur, "__len__"):
-            if self.durfunc is None:
-                raise TypeError("Duration function must be provided for variable duration states.")
-            if len(self.dur) != 2:
-                raise ValueError("Variable duration states must have two duration bounds.")
-
-    def get_next(self):
-        if self.probs is None:
-            next = self.next
-        else:
-            next = self.next[self.rng.choice([0, 1], p=self.probs)]
-        if hasattr(self.dur, "__len__"):
-            dur = self.durfunc(*self.dur)
-        else:
-            dur = self.dur
-        return next, dur
 
 
 def quit_experiment(

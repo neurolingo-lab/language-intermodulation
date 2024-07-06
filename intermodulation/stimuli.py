@@ -93,7 +93,7 @@ class FlickerTimes:
         return state0, state1
 
 
-class Trial:
+class TwoWordStim:
     def __init__(
         self,
         window: Window,
@@ -131,7 +131,7 @@ class Trial:
             "words": {0: False, 1: False},
             "shapes": {"fixdot": False},
         }
-        self.shapes["fixdot"].setAutoDraw(True)
+        self.shapes["fixdot"].setAutoDraw(False)
         for word in self.words:
             self.words[word].setAutoDraw(False)
         self.start_t = None
