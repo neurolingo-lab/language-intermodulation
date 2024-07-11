@@ -41,3 +41,6 @@ full = [
 
 [tool.black]
 line-length = 99
+
+[tool.pyright]
+ignore = ["**/tests/**",]

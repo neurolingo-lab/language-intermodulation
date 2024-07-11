@@ -1,0 +1,215 @@
+from collections.abc import Callable, Hashable, Mapping, Sequence
+from copy import deepcopy
+from dataclasses import dataclass, field
+from numbers import Number
+
+import numpy as np
+import psychopy.core
+import psychopy.visual
+
+from intermodulation.core.stimuli import StatefulStim
+from intermodulation.events import ExperimentLog
+from intermodulation.utils import nested_get, nested_keys, nested_set
+
+
+@dataclass
+class MarkovState:
+    """
+    Markov state class to allow for both deterministic and probabilistic state transitions,
+    computing current state duration when determining the next state.
+
+    Attributes
+    ----------
+    next : Hashable | Sequence[Hashable]
+        Next state(s) to transition to. Can us any identifier that is hashable for the state.
+        If a single state, the state is deterministic. If a sequence of multiple states,
+        the next state is probabilistic and `transitions` must be provided.
+    dur : float | Callable
+        Duration of the current state. If a single float, the state has a fixed duration. If a
+        callable, the state has a variable duration and the callable must return a duration.
+    transition : None | Callable
+        Probabilities of transitioning to the next state(s). If `next` is a single state, this
+        attribute is not needed. If `next` is a sequence of states, this attribute must be a
+        callable that returns an index in `next` based on the probabilities of transitioning.
+    start_calls : list[Callable]
+        List of functions to call when the state is started. Functions must take the state and
+        the current time as arguments. Default is an empty list.
+    end_calls : list[Callable]
+        List of functions to call when the state is ended. Functions must take the state and
+        the current time as arguments. Default is an empty list.
+    update_calls : list[Callable]
+        List of functions to call when the state is updated. Functions must take the state and
+        the current time as arguments. Default is an empty list.
+    log_onflip : list[str]
+        List of attributes to log when the display is flipped. Default is an empty list.
+    """
+
+    next: Sequence[Hashable] | Hashable
+    dur: float | Callable
+    transition: None | Callable = None
+    start_calls: list[Callable] = field(default_factory=list)
+    end_calls: list[Callable] = field(default_factory=list)
+    update_calls: list[Callable] = field(default_factory=list)
+    log_onflip: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not isinstance(self.next, (Hashable, Sequence)):
+            raise TypeError("Next state must be a hashable or sequence of hashables.")
+        if not isinstance(self.dur, (float, Callable)):
+            raise TypeError(
+                "Duration must be a float or callable function that gives an index" " into `next`."
+            )
+        if isinstance(self.next, Sequence) and not isinstance(self.next, str):
+            if not isinstance(self.transition, Callable):
+                raise TypeError(
+                    "If `next` is a sequence, `transition` must be a callable function"
+                    " that gives an index into `next`."
+                )
+            if not all(isinstance(i, Hashable) for i in self.next):
+                raise TypeError("All elements of `next` must be hashable.")
+        if isinstance(self.dur, int):
+            self.dur = float(self.dur)
+
+    def get_next(self, *args, **kwargs):
+        """
+        Get next state from this state. Arguments are passed to the transition function if it is
+        callable.
+
+        Returns
+        -------
+        Hashable
+            The hashable identifier of the next state.
+        float
+            The duration of the current state.
+        """
+        match (self.next, self.transition):
+            case [Sequence(), Callable()]:
+                try:
+                    next = self.next[self.transition(*args, **kwargs)]  # type: ignore
+                except IndexError:
+                    raise ValueError("Transition function must return an index in `next`.")
+            case [Hashable(), _]:
+                next = self.next
+        match self.dur:
+            case float():
+                dur = self.dur
+            case Callable():
+                dur = self.dur()
+        return next, dur
+
+    def start_state(self, t, *args, **kwargs):
+        """
+        Initiate state by calling all functions in `start_calls`.
+
+        Parameters
+        ----------
+        t : float
+            time of state initiation (usually next flip).
+        """
+        for f in self.start_calls:
+            f(t, *args, **kwargs)
+
+    def update_state(self, t, *args, **kwargs):
+        """
+        Update state by calling all functions in `update_calls`.
+
+        Parameters
+        ----------
+        t : float
+            time of state update (usually next flip).
+        """
+        for f in self.update_calls:
+            f(t, *args, **kwargs)
+
+    def end_state(self, t, *args, **kwargs):
+        """
+        End state by calling all functions in `end_calls`.
+
+        Parameters
+        ----------
+        t : float
+            time of state end (usually next flip).
+        """
+        for f in self.end_calls:
+            f(t, *args, **kwargs)
+
+    def clear_logitems(self):
+        """
+        Clear all items marked to be logged on flip.
+        """
+        self.log_onflip = []
+
+
+@dataclass
+class FlickerStimState(MarkovState):
+    frequencies: Mapping[Hashable, Number | Mapping] = field(kw_only=True)
+    window: psychopy.visual.Window = field(kw_only=True)
+    stim: StatefulStim = field(kw_only=True)
+    logger: ExperimentLog = field(kw_only=True)
+    clock: psychopy.core.Clock = field(kw_only=True)
+    framerate: float = 60.0
+    precompute_flicker_t = 100.0
+
+    def __post_init__(self):
+        self.start_calls.append(self._create_stim)
+        self.start_calls.append(self._compute_flicker)
+        self.update_calls.append(self._update_stim)
+        super().__post_init__()
+
+    def start_state(self, t, constructor_kwargs):
+        return super().start_state(t, constructor_kwargs)
+
+    def _create_stim(self, t, constructor_kwargs, *args, **kwargs):
+        if not hasattr(self, "window"):
+            raise AttributeError("Window must be set as state attribute before creating stimuli.")
+        self.clear_logitems()
+        self.stim.start_stim(constructor_kwargs)
+        self.stimon_t = t
+
+    def _compute_flicker(self, *args, **kwargs):
+        if isinstance(self.stim, NotImplementedError):
+            raise AttributeError("Stimulus must be created before computing flicker.")
+        if not hasattr(self, "stimon_t"):
+            raise AttributeError("Stimulus must be created before computing flicker.")
+        allkeys = nested_keys(self.stim)
+        ts = {}
+        for keys in allkeys:
+            try:
+                if nested_get(self.frequencies, keys) in (None, 0):
+                    nested_set(ts, keys, None)
+                else:
+                    nested_set(
+                        ts,
+                        keys,
+                        np.arange(
+                            self.stimon_t,  # type: ignore
+                            self.precompute_flicker_t,
+                            1 / (2 * nested_get(self.frequencies, keys)),  # type: ignore
+                        ),
+                    )
+            except KeyError:
+                nested_set(ts, keys, None)
+
+        self.target_switches = ts
+        self.target_mask = {}
+        for k in allkeys:
+            nested_set(self.target_mask, k, np.ones_like(self.target_switches[k], dtype=bool))
+
+    def _update_stim(self, t):
+        if not hasattr(self, "stim"):
+            raise AttributeError("Stimuli must be created before updating.")
+        self.clear_logitems()
+        newstates = deepcopy(self.stim.states)
+        for key in nested_keys(self.target_switches):
+            keyts = nested_get(self.target_switches, key)
+            keymask = nested_get(self.target_mask, key)
+            if keyts is None:
+                continue
+            masked_ts = keyts[keymask]
+            close_enough = np.isclose(t, keyts, atol=1 / (2 * self.framerate))
+            goodclose = np.logical_and(close_enough, masked_ts)
+            if np.any(goodclose):
+                ts_idx = np.argwhere(goodclose).flatten()[-1]
+                keymask[ts_idx] = False
+                newstates[key] = not self.stim.states[key]
+        changed = self.stim.update_stim(newstates)
