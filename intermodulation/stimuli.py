@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 import psychtoolbox as ptb
-from psychopy.visual import ShapeStim, TextStim, Window
+from psychopy.visual import BaseVisualStim, TextStim, Window
+from psychopy.visual.shape import ShapeStim
 from scipy.interpolate import interp1d
 
 # constants
@@ -56,41 +57,6 @@ FLICKER_RATES = np.array([20.0, 2.0])  # Hz
 WordsDict = TypedDict("WordsDict", {0: bool, 1: bool})
 ShapesDict = TypedDict("ShapesDict", {"dot": bool})
 StimUpdate = TypedDict("StimUpdate", {"words": WordsDict, "shapes": ShapesDict})
-
-
-class FlickerTimes:
-    def __init__(self, flicker_rates: tuple[float, float]):
-        """
-        Determine equal-luminance flicker times for two flicker rates. Works by ensuring that the
-        "on" time where a stimulus is displayed is equal between the two flicker rates per cycle.
-
-        Parameters
-        ----------
-        flicker_rates : tuple[float, float]
-            The two flickers rates for the stimuli in question. Will use the on time of the shorter
-            cycle to determine the on time for the longer one.
-        """
-        self.flicker_rates = np.array(flicker_rates)
-        self.cycle_durations = 1 / self.flicker_rates
-        short_cycle = np.argmin(self.cycle_durations)
-        long_cycle = 0 if short_cycle == 1 else 1
-        framefuncs = []
-        for i in range(2):
-            dur = self.cycle_durations[i]
-            if i == short_cycle:
-                xpoints = [0, dur, 2 * self.cycle_durations[long_cycle]]
-                ypoints = [1, 0, 0]
-            else:
-                xpoints = [0, dur, 2 * dur]
-                ypoints = [1, 0, 0]
-            framefuncs.append(interp1d(xpoints, ypoints, kind="previous"))
-        self.framefuncs = framefuncs
-
-    def get_states(self, start_time: float, frame_time: float):
-        runtime = frame_time - start_time
-        state0 = self.framefuncs[0](runtime % (self.cycle_durations[0] * 2))
-        state1 = self.framefuncs[1](runtime % (self.cycle_durations[1] * 2))
-        return state0, state1
 
 
 class TwoWordStim:

@@ -2,61 +2,91 @@
 General task-related utility functions.
 """
 
+import asyncio
 import pickle
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Callable
 
 import numpy as np
+import pandas as pd
 import psychopy.constants
 import psychopy.core
 import psychopy.visual
 
-import intermodulation.stimuli as stimuli
+LOGGABLES = {
+    "per_trial": [
+        "trial_number",
+        "block_number",
+        "block_trial",
+        "trial_start",
+        "fixation_on",
+        "stim_on",
+        "iti_start",
+        "trial_end",
+        "word_1",
+        "word_2",
+        "word_1_freq",
+        "word_2_freq",
+        "condition",
+        "randomized",
+        "trial_cond",
+    ],
+    "continuous_per_trial": [
+        "word_1_switches",
+        "word_2_switches",
+        "word_1_states",
+        "word_2_states",
+    ],
+}
 
 
 @dataclass
 class ExperimentLog:
-    clock: psychopy.core.Clock
-    trials: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
-    trial_states: dict[int, dict[int, list[tuple[float, bool]]]] = field(
-        default_factory=lambda: {0: defaultdict(list), 1: defaultdict(list)}
-    )
+    loggables: Mapping[str, list[str]] = field(default_factory=LOGGABLES.copy)
 
-    async def update(self, attrib, key, value, exp, key2=None):
-        value = self.parse_value(value, exp)
+    def __post_init__(self):
+        trial_template = zip(
+            self.loggables["per_trial"], np.ones(len(self.loggables["per_trial"])) * np.nan
+        )
+        self.trials = defaultdict(dict(trial_template).copy)
+        cont_template = zip(
+            self.loggables["continuous_per_trial"],
+            [[]] * len(self.loggables["continuous_per_trial"]),
+        )
+        self.continuous = defaultdict(dict(cont_template).copy)
+        self.log_on_flip = []
 
-        if key2 is None:
-            getattr(self, attrib)[key].append(value)
+    def log(self, trial_number, key, value):
+        if asyncio.coroutines.iscoroutine(value):
+            self.log_on_flip.append(self._lazylog(trial_number, key, value))
         else:
-            getattr(self, attrib)[key][key2].append(value)
+            asyncio.run(self._lazylog(trial_number, key, value))
 
-    def parse_value(self, value, exp):
-        twoval = False
-        if isinstance(value, tuple):
-            twoval = True
-            secondval = value[1]
-            value = value[0]
-            if not isinstance(value, str):
-                raise ValueError(f"Invalid value string. Must have string in first position.")
-        if isinstance(value, str):
-            match value.split("."):
-                case ["fliptime"]:
-                    return1 = exp.last_flip
-                case ["state", subkey]:
-                    return1 = getattr(exp.state, subkey)
-                case [other]:
-                    return1 = other
+    async def _lazylog(self, trial_number: int, key, value):
+        if asyncio.iscoroutine(value):
+            await value
+        if key in self.loggables["per_trial"]:
+            self.trials[trial_number][key] = value
+        elif key in self.loggables["continuous_per_trial"]:
+            self.continuous[trial_number][key].append(value)
         else:
-            return1 = value
-        if twoval:
-            return return1, secondval
-        else:
-            return return1
+            raise ValueError(f"Key {key} not in loggables.")
+
+    def log_flip(self):
+        if len(self.log_on_flip) > 0:
+            asyncio.run(self._process_flip_logs())
+            self.log_on_flip = []
+
+    async def _process_flip_logs(self):
+        await asyncio.gather(*self.log_on_flip)
+        return
 
     def save(self, fn: str):
+        trial_nums = list(self.trials.keys())
+        trialsdf = pd.DataFrame.from_records([self.trials[tn] for tn in sorted(trial_nums)])
         with open(fn, "wb") as fw:
-            pickle.dump({"trial_states": self.trial_states, "trials": self.trials}, fw)
+            pickle.dump({"continuous": self.continuous, "trials": trialsdf}, fw)
 
 
 def quit_experiment(
