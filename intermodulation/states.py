@@ -10,6 +10,15 @@ import intermodulation.events as imevents
 import intermodulation.stimuli as imstim
 
 
+def nested_iteritems(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for subk, v in nested_iteritems(v):
+                yield (k, *subk), v
+        else:
+            yield (k), v
+
+
 @dataclass
 class MarkovState:
     """
@@ -95,7 +104,7 @@ class MarkovState:
                 dur = self.dur()
         return next, dur
 
-    def start_state(self, t):
+    def start_state(self, t, *args, **kwargs):
         """
         Initiate state by calling all functions in `start_calls`.
 
@@ -105,9 +114,9 @@ class MarkovState:
             time of state initiation (usually next flip).
         """
         for f in self.start_calls:
-            f(self, t)
+            f(t, *args, **kwargs)
 
-    def update_state(self, t):
+    def update_state(self, t, *args, **kwargs):
         """
         Update state by calling all functions in `update_calls`.
 
@@ -117,9 +126,9 @@ class MarkovState:
             time of state update (usually next flip).
         """
         for f in self.update_calls:
-            f(self, t)
+            f(t, *args, **kwargs)
 
-    def end_state(self, t):
+    def end_state(self, t, *args, **kwargs):
         """
         End state by calling all functions in `end_calls`.
 
@@ -129,7 +138,7 @@ class MarkovState:
             time of state end (usually next flip).
         """
         for f in self.end_calls:
-            f(self, t)
+            f(t, *args, **kwargs)
 
     def clear_logitems(self):
         """
@@ -137,6 +146,49 @@ class MarkovState:
         """
         self.log_onflip = []
 
+@dataclass
+class FlickerStimState(MarkovState):
+    frequencies: Sequence[float] = field(kw_only=True)
+    window: psychopy.visual.Window = field(kw_only=True)
+    framerate: float = 60.0
+    clock: psychopy.core.Clock = field(default_factory=psychopy.core.Clock)
+
+    def __post_init__(self):
+        self.update_call.append(self._update_stim)
+        self.frequencies = np.array(self.frequencies)
+        self.stim = NotImplementedError("FlickerStimState is a primitive not intended for use on its own. "
+                                        "Use a subclass with a specific stimulus type.")
+        super().__post_init__()
+
+    @staticmethod
+    def _nested_iteritems(d):
+        for k, v in d.items():
+            if isinstance(v, dict):
+                for subk, v in FlickerStimState._nested_iteritems(v):
+                    if len(subk) > 1:
+                        yield (k, *subk), v
+                    yield (k, subk), v
+                yield from FlickerStimState._nested_iteritems(v)
+            else:
+                yield k, v
+
+
+    def _update_stim(self, t):
+        if not hasattr(self, "stim"):
+            raise AttributeError("Stimuli must be created before updating.")
+        if self.stim is NotImplementedError:
+            raise self.stim
+        self.clear_logitems()
+        newstates = self.stim.states.copy()
+        for word in range(2):
+            swidx = len(self.switches[word])
+            next_switcht = self.target_switches[word][swidx]
+            if t - next_switcht > -2 / self.framerate:
+                newstates["words"][word] = not self.stim.states["words"][word]
+                self.window.callOnFlip(self._rec_flip_time, self.clock, word)
+                self.wordstates[word].append(newstates["words"][word])
+        changed = self.stim.update_stim(newstates)
+        # TODO: Add logging of stimulus updates
 
 @dataclass
 class TwoWordState(MarkovState):
@@ -190,7 +242,7 @@ class TwoWordState(MarkovState):
         for word in range(2):
             swidx = len(self.switches[word])
             next_switcht = self.target_switches[word][swidx]
-            if t - next_switcht >= -1 / (4 * self.framerate):
+            if t - next_switcht > -2 / self.framerate:
                 newstates["words"][word] = not self.stim.states["words"][word]
                 self.window.callOnFlip(self._rec_flip_time, self.clock, word)
                 self.wordstates[word].append(newstates["words"][word])
