@@ -2,6 +2,8 @@ from ast import Not
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Dict, Union
+from functools import reduce
+import operator
 
 import numpy as np
 import psychopy.core
@@ -10,13 +12,32 @@ import intermodulation.events as imevents
 import intermodulation.stimuli as imstim
 
 
-def nested_iteritems(d):
+def _nested_iteritems(d):
     for k, v in d.items():
         if isinstance(v, dict):
-            for subk, v in nested_iteritems(v):
+            for subk, v in _nested_iteritems(v):
                 yield (k, *subk), v
         else:
             yield (k), v
+
+def _nested_keys(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for subk in _nested_keys(v):
+                yield (k, *subk)
+        else:
+            yield (k)
+
+def _nested_get(d, keys):
+    for key in keys[:-1]:
+        d = d[key]
+    return d[keys[-1]]
+
+def _nested_set(d, keys, value):
+    for key in keys[:-1]:
+        d = d.setdefault(key, {})
+    d[keys[-1]] = value
+
 
 
 @dataclass
@@ -148,36 +169,60 @@ class MarkovState:
 
 @dataclass
 class FlickerStimState(MarkovState):
-    frequencies: Sequence[float] = field(kw_only=True)
+    frequencies: dict[dict] = field(kw_only=True)
     window: psychopy.visual.Window = field(kw_only=True)
     framerate: float = 60.0
+    precompute_flicker_t = 100.0
     clock: psychopy.core.Clock = field(default_factory=psychopy.core.Clock)
 
     def __post_init__(self):
+        self.start_calls.append(self._create_stim)
         self.update_call.append(self._update_stim)
         self.frequencies = np.array(self.frequencies)
         self.stim = NotImplementedError("FlickerStimState is a primitive not intended for use on its own. "
                                         "Use a subclass with a specific stimulus type.")
         super().__post_init__()
 
-    @staticmethod
-    def _nested_iteritems(d):
-        for k, v in d.items():
-            if isinstance(v, dict):
-                for subk, v in FlickerStimState._nested_iteritems(v):
-                    if len(subk) > 1:
-                        yield (k, *subk), v
-                    yield (k, subk), v
-                yield from FlickerStimState._nested_iteritems(v)
-            else:
-                yield k, v
+    def _create_stim(self, t):
+        """
+        Create stimulus for flicker state. Must be implemented in subclass.
+
+        Must create the internal attributes `stim`, `stimon_t`, `switches`, and `target_switches`.
+        `stim` is the stimulus object from intermodulation.stimuli, `stimon_t` is the time the stimulus was started,
+        `switches` is a dictionary of lists of times when the stimulus switches states, and `target_switches` is a
+        a dictionary of arrays of times when the stimulus should switch states.
+
+        Note that `switches` and `target_switches` can be nested dictionaries to allow for multiple stimuli  to be
+        logically grouped. The structure of these nested dicts must match one another, and be consistent with the frequencies
+        passed to the state.
+
+        Parameters
+        ----------
+        t : float
+            Time at next flip from the current clock (used at instiation of the state)
+        """
+        raise self.stim
+    
+    def _compute_flicker(self):
+        if isinstance(self.stim, NotImplementedError):
+            raise AttributeError("Stimulus must be created before computing flicker.")
+        allkeys = _nested_keys(self.stim)
+        ts = {}
+        for keys in allkeys:
+            try:
+                if _nested_get(self.frequencies, keys) in (None, 0):
+                    _nested_set(ts, keys, None)
+                else:
+                    _nested_set(ts, keys, np.arange(self.stimon_t, self.precompute_flicker_t, 1 / (2 * self.frequencies[keys])))
+            except KeyError:
+                _nested_set(ts, keys, None)
+                
+        self.target_switches = ts
 
 
     def _update_stim(self, t):
         if not hasattr(self, "stim"):
             raise AttributeError("Stimuli must be created before updating.")
-        if self.stim is NotImplementedError:
-            raise self.stim
         self.clear_logitems()
         newstates = self.stim.states.copy()
         for word in range(2):
