@@ -9,7 +9,7 @@ import psychopy.visual
 
 from intermodulation.core.stimuli import StatefulStim
 from intermodulation.events import ExperimentLog
-from intermodulation.utils import nested_get, nested_keys, nested_set
+from intermodulation.utils import nested_get, nested_deepkeys, nested_set
 
 
 @dataclass
@@ -167,11 +167,9 @@ class FlickerStimState(MarkovState):
         self.stimon_t = t
 
     def _compute_flicker(self, *args, **kwargs):
-        if isinstance(self.stim, NotImplementedError):
-            raise AttributeError("Stimulus must be created before computing flicker.")
         if not hasattr(self, "stimon_t"):
             raise AttributeError("Stimulus must be created before computing flicker.")
-        allkeys = nested_keys(self.stim)
+        allkeys = nested_deepkeys(self.stim.construct)
         ts = {}
         for keys in allkeys:
             try:
@@ -200,7 +198,7 @@ class FlickerStimState(MarkovState):
             raise AttributeError("Stimuli must be created before updating.")
         self.clear_logitems()
         newstates = deepcopy(self.stim.states)
-        for key in nested_keys(self.target_switches):
+        for key in nested_deepkeys(self.target_switches):
             keyts = nested_get(self.target_switches, key)
             keymask = nested_get(self.target_mask, key)
             if keyts is None:
