@@ -13,8 +13,9 @@ import psychopy.logging
 import psychopy.visual
 from psychopy.hardware.keyboard import Keyboard
 
+from intermodulation.core.events import ExperimentLog
 import intermodulation.stimuli as stimuli
-from intermodulation.events import ExperimentLog, MarkovState
+from intermodulation.events import MarkovState
 
 states = SimpleNamespace(
     EXPSTART=-1,

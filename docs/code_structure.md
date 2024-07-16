@@ -1,7 +1,7 @@
 ```mermaid
 classDiagram
     direction  LR
-    class  MarkovState  {
+    class  MarkovState["✅ MarkovState"]  {
         +Callable  [start|update|end]_calls
         +HashableOrSeq  next
 		+get_next()  Hashable,  float
@@ -9,47 +9,45 @@ classDiagram
 		+update_state(t)
 		+end_state(t)
     }
-    class  TwoWordState  {
+    class  FlickerStimState["✅ FlickerStimState"]  {
 		+Array~float~  frequencies
 		+PsychopyWindow  window
-		+float  framerate
-		+TwoWordStim  stim
-		+start_call  create_stim
-		+update_call  update_stim
-		+end_call  end_stim
+		+StatefulStim  stim
+		+ExperimentLog logger
+		+psychopy.core.Clock clock
+		+float framerate
+		+start_call  _create_stim
+		+update_call  _update_stim, _compute_flicker
+		+end_call  _end_stim
+    }
+    class  TwoWordState  {
+		+Array~string~  words
+		+Mapping~ConstructorKwargs~ text_config
     }
     class  OneWordState  {
-	    +float  frequency
-	    +PsychopyWindow  window
-	    +float  framerate
-	    +OneWordStim  stim
-	    +start_call  create_stim
-	    +update_call  update_stim
-	    +end_call  end_stim        
+	    +string  word
+	    +Mapping~ConstructorKwargs~ text_config
     }
     class  FixationState  {
-        +PsychopyWindow  window
-        +FixationDot  stim
-        +start_call  create_stim
-        +end_call  end_stim  
+        +Array~None~ frequencies
+        +Mapping~ConstructorKwargs~ dot_config
     }
     class  QueryState  {
-        +PsychopyWindow  window
-        +QueryText  stim
-        +start_call  create_stim
-        +update_call  check_response
-        +end_call  record_response
+        +string query_word
+        +KeyHandler some_kinda_keyboard_shit
     }
     class  InterTrialState  {
         +PsychopyWindow  window
     }
-    MarkovState  <|--  TwoWordState
-    MarkovState  <|--  OneWordState
-    MarkovState  <|--  FixationState
-    MarkovState  <|--  QueryState
-    MarkovState  <|--  InterTrialState
-    class  ExperimentStructure  {
+    MarkovState  <|--  FlickerStimState
+    FlickerStimState  <|--  TwoWordState
+    FlickerStimState  <|--  OneWordState
+    FlickerStimState  <|--  FixationState
+    FlickerStimState  <|--  QueryState
+    FlickerStimState  <|--  InterTrialState
+    class  ExperimentStructure["⭕ ExperimentStructure"]  {
         +Mapping~HashableToMarkovState~  states
+        +Mapping~Mapping~HashableToLogItem~~ log_events
         +Hashable  start
         +Hashable  current
         +float  t_next
@@ -66,16 +64,12 @@ classDiagram
     FixationState  --*  ExperimentStructure
     QueryState  --*  ExperimentStructure
     InterTrialState  --*  ExperimentStructure
-    class ExperimentLog  {
+    class ExperimentLog["✅ ExperimentLog"]  {
         +PsychopyClock  clock
         +Dict~strToList~  trials
         +Dict~intToDict~  trial_states
         +update
         +save
     }
-    TwoWordState  -->  ExperimentLog
-    MarkovState  <--  ExperimentLog
-    FixationState  -->  ExperimentLog
-    MarkovState  <--  ExperimentLog
-    InterTrialState  -->  ExperimentLog
+    ExperimentStructure --> ExperimentLog
 ```

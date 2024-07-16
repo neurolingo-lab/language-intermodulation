@@ -29,13 +29,15 @@ class StatefulStim:
                 k,
                 nested_get(self.construct, k)(win=self.win, **nested_get(constructor_kwargs, k)),
             )
+            nested_get(self.stim, k).setAutoDraw(True)
             nested_set(self.states, k, True)
 
     def update_stim(self, newstates):
-        updatekeys = nested_deepkeys(newstates)
+        updatekeys = list(nested_deepkeys(newstates))
         if not set(updatekeys).issubset(set(nested_deepkeys(self.states))):
             raise ValueError("Mismatched keys between new states and current states.")
         changed = []
+
         for k in updatekeys:
             currstate = nested_get(self.states, k)
             if currstate != nested_get(newstates, k):
@@ -45,7 +47,7 @@ class StatefulStim:
         return changed
 
     def end_stim(self):
-        allkeys = nested_deepkeys(self.stim)
+        allkeys = list(nested_deepkeys(self.stim))
         for k in allkeys:
             nested_pop(self.stim, k).setAutoDraw(False)
             nested_set(self.states, k, False)

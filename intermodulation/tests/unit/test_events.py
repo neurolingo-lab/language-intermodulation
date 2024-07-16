@@ -4,7 +4,7 @@ import psychopy.core
 import pytest
 import numpy as np
 
-from intermodulation.events import ExperimentLog
+from intermodulation.core.events import ExperimentLog
 from intermodulation.utils import lazy_time
 
 
