@@ -1,14 +1,32 @@
+import itertools as it
+
 import numpy as np
 import psychopy.core
 import psychopy.visual
 import pytest
+from scipy.interpolate import interp1d
 
+import intermodulation.core.events as events
 import intermodulation.core.states as cstates
 import intermodulation.core.stimuli as cstim
-import intermodulation.events as events
-from intermodulation.tests.test_stimuli import window, constructors, constructor_kwargs
-from intermodulation.utils import nested_deepkeys, nested_get
 from intermodulation import states
+from intermodulation.tests.unit.test_stimuli import constructor_kwargs, constructors, window
+from intermodulation.utils import nested_deepkeys, nested_get, nested_iteritems, nested_set
+
+
+def get_flicker_set():
+    basedict = {"words": {"w1": 4.0, "w2": 5.0}, "shapes": {"fixdot": None}}
+    basekeys = list(nested_deepkeys(basedict))
+    valueset = [4.0, 5.0, 0.0, None]
+    fullset = []
+    combs = [*it.product(valueset, repeat=len(basekeys))]
+
+    for vals in it.product(valueset, repeat=len(basekeys)):
+        subdict = {}
+        for key, val in zip(basekeys, vals):
+            nested_set(subdict, key, val)
+        fullset.append(subdict)
+    return fullset
 
 
 @pytest.fixture
@@ -160,17 +178,6 @@ class TestFlickerState:
         )
         flickerstate.window.close()
 
-    def test_flicker_start(self, flickerstate, constructor_kwargs):
-        flickerstate.start_state(0.0, constructor_kwargs)
-        assert flickerstate.stimon_t == 0.0
-        assert all(
-            [
-                nested_get(flickerstate.stim.states, k)
-                for k in nested_deepkeys(flickerstate.stim.states)
-            ]
-        )
-        flickerstate.window.close()
-
     def test_flicker_compute(self, lowfreqs, flickerstate):
         flickerstate.stimon_t = 0.0
         flickerstate._compute_flicker()
@@ -184,3 +191,65 @@ class TestFlickerState:
         assert np.all(flickerstate.target_switches["words"]["w1"] == w1_target)
         assert np.all(flickerstate.target_switches["words"]["w2"] == w2_target)
         assert flickerstate.target_switches["shapes"]["fixdot"] is None
+
+    def test_flicker_start(self, flickerstate, constructor_kwargs):
+        flickerstate.start_state(0.0, constructor_kwargs)
+        assert flickerstate.stimon_t == 0.0
+        assert all(
+            [
+                nested_get(flickerstate.stim.states, k)
+                for k in nested_deepkeys(flickerstate.stim.states)
+            ]
+        )
+        flickerstate.window.close()
+
+    @pytest.mark.parametrize("lowfreqs", get_flicker_set())
+    def test_flicker_update_stim_twowords(
+        self, lowfreqs, window, stim, logger, clock, constructor_kwargs
+    ):
+        flickers = [v for k, v in nested_iteritems(lowfreqs) if v not in (None, 0.0)]
+        flickerkeys = [k for k, v in nested_iteritems(lowfreqs) if v not in (None, 0.0)]
+        bestframerate = np.prod(flickers)
+        test_t = np.arange(0, 1, 1 / bestframerate)
+        # Test standard update with some flickering stimuli, but not all
+        flickerstate = cstates.FlickerStimState(
+            next="next",
+            dur=1.0,
+            frequencies=lowfreqs,
+            window=window,
+            stim=stim,
+            logger=logger,
+            clock=clock,
+            framerate=bestframerate,
+        )
+        flickerstate.start_state(0.0, constructor_kwargs)
+        predstates = {}
+        for k in flickerkeys:
+            tgt = nested_get(flickerstate.target_switches, k)
+            draws = np.zeros_like(tgt, dtype=bool)
+            draws[::2] = True
+            predstate = interp1d(tgt, draws, kind="previous")
+            predstates[k] = predstate
+        for t in test_t[1:]:
+            flickerstate.update_state(t)
+            for k, predstate in predstates.items():
+                kstate = nested_get(flickerstate.stim.states, k)
+                assert any(
+                    [  # Ugly but heads off any floating point errors
+                        kstate == predstate(t),
+                        kstate == predstate(t - 1e-8),
+                        kstate == predstate(t + 1e-8),
+                    ]
+                )
+
+    def test_flicker_end(self, flickerstate, constructor_kwargs):
+        flickerstate.start_state(0.0, constructor_kwargs)
+        flickerstate.end_state(1.0)
+        assert all(
+            [
+                not nested_get(flickerstate.stim.states, k)
+                for k in nested_deepkeys(flickerstate.stim.states)
+            ]
+        )
+        assert len(list(nested_deepkeys(flickerstate.stim.stim)) == 0)
+        flickerstate.window.close()

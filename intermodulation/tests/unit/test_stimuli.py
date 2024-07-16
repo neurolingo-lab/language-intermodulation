@@ -1,13 +1,14 @@
-from intermodulation.core.stimuli import StatefulStim
-import pytest
 import psychopy.visual as pv
+import pytest
 from psychopy.visual.shape import ShapeStim
+
+from intermodulation.core.stimuli import StatefulStim
 from intermodulation.utils import nested_deepkeys, nested_get, nested_set
 
 
 @pytest.fixture
 def window():
-    return pv.Window(
+    win = pv.Window(
         screen=0,
         size=(800, 600),
         fullscr=False,
@@ -19,6 +20,8 @@ def window():
         units="deg",
         checkTiming=False,
     )
+    win.flip()
+    return win
 
 
 @pytest.fixture
@@ -75,16 +78,26 @@ class TestStatefulStim:
     def test_update_stim(self, window, constructors, constructor_kwargs):
         stim = StatefulStim(window, constructors)
         stim.start_stim(constructor_kwargs)
-        newstates = {
+        newstates = {  # All states start as True, so this will only change w2
             "words": {"w1": True, "w2": False},
             "shapes": {"fixdot": True},
         }
         changed = stim.update_stim(newstates)
-        assert changed == [("words", "w1"), ("words", "w2"), ("shapes", "fixdot")]
+        assert changed == [
+            ("words", "w2"),
+        ]
         assert all(
             [
                 nested_get(stim.states, k) == nested_get(newstates, k)
                 for k in nested_deepkeys(newstates)
             ]
         )
+        window.close()
+
+    def test_end_stim(self, window, constructors, constructor_kwargs):
+        stim = StatefulStim(window, constructors)
+        stim.start_stim(constructor_kwargs)
+        stim.end_stim()
+        assert all([not nested_get(stim.states, k) for k in nested_deepkeys(stim.states)])
+        assert len(list(nested_deepkeys(stim.stim))) == 0
         window.close()

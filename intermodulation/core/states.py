@@ -2,21 +2,24 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from numbers import Number
+from typing import TYPE_CHECKING
 
 import numpy as np
 import psychopy.core
 import psychopy.visual
 
-from intermodulation.core.stimuli import StatefulStim
-from intermodulation.events import ExperimentLog
-from intermodulation.utils import nested_get, nested_deepkeys, nested_set
+import intermodulation.core.events as events
+import intermodulation.core.stimuli as stimuli
+from intermodulation.core import _types
+from intermodulation.utils import nested_deepkeys, nested_get, nested_set
 
 
 @dataclass
-class MarkovState:
+class MarkovState(_types.MarkovState):
     """
     Markov state class to allow for both deterministic and probabilistic state transitions,
-    computing current state duration when determining the next state.
+    computing current state duration when determining the next state. Useful base class, not for
+    direct use.
 
     Attributes
     ----------
@@ -144,8 +147,8 @@ class MarkovState:
 class FlickerStimState(MarkovState):
     frequencies: Mapping[Hashable, Number | Mapping] = field(kw_only=True)
     window: psychopy.visual.Window = field(kw_only=True)
-    stim: StatefulStim = field(kw_only=True)
-    logger: ExperimentLog = field(kw_only=True)
+    stim: stimuli.StatefulStim = field(kw_only=True)
+    logger: events.ExperimentLog = field(kw_only=True)
     clock: psychopy.core.Clock = field(kw_only=True)
     framerate: float = 60.0
     precompute_flicker_t = 100.0
@@ -154,10 +157,8 @@ class FlickerStimState(MarkovState):
         self.start_calls.append(self._create_stim)
         self.start_calls.append(self._compute_flicker)
         self.update_calls.append(self._update_stim)
+        self.end_calls.append(self._end_stim)
         super().__post_init__()
-
-    def start_state(self, t, constructor_kwargs):
-        return super().start_state(t, constructor_kwargs)
 
     def _create_stim(self, t, constructor_kwargs, *args, **kwargs):
         if not hasattr(self, "window"):
@@ -169,7 +170,7 @@ class FlickerStimState(MarkovState):
     def _compute_flicker(self, *args, **kwargs):
         if not hasattr(self, "stimon_t"):
             raise AttributeError("Stimulus must be created before computing flicker.")
-        allkeys = nested_deepkeys(self.stim.construct)
+        allkeys = list(nested_deepkeys(self.stim.construct))
         ts = {}
         for keys in allkeys:
             try:
@@ -191,7 +192,10 @@ class FlickerStimState(MarkovState):
         self.target_switches = ts
         self.target_mask = {}
         for k in allkeys:
-            nested_set(self.target_mask, k, np.ones_like(self.target_switches[k], dtype=bool))
+            mask = np.ones_like(nested_get(self.target_switches, k), dtype=bool)
+            if len(mask.shape) > 0:
+                mask[0] = False
+            nested_set(self.target_mask, k, mask)
 
     def _update_stim(self, t):
         if not hasattr(self, "stim"):
@@ -199,15 +203,23 @@ class FlickerStimState(MarkovState):
         self.clear_logitems()
         newstates = deepcopy(self.stim.states)
         for key in nested_deepkeys(self.target_switches):
-            keyts = nested_get(self.target_switches, key)
+            keytargets = nested_get(self.target_switches, key)
             keymask = nested_get(self.target_mask, key)
-            if keyts is None:
+            if keytargets is None:
                 continue
-            masked_ts = keyts[keymask]
-            close_enough = np.isclose(t, keyts, atol=1 / (2 * self.framerate))
-            goodclose = np.logical_and(close_enough, masked_ts)
+            close_enough = np.isclose(
+                t, keytargets, rtol=0.0, atol=1 / (2 * self.framerate) - 1e-6
+            )
+            past_t = t > keytargets
+            goodclose = (close_enough & keymask) | (past_t & keymask)
+            # breakpoint()
             if np.any(goodclose):
                 ts_idx = np.argwhere(goodclose).flatten()[-1]
                 keymask[ts_idx] = False
-                newstates[key] = not self.stim.states[key]
+                nested_set(newstates, key, not nested_get(self.stim.states, key))
         changed = self.stim.update_stim(newstates)
+
+    def _end_stim(self, t):
+        if not hasattr(self, "stim"):
+            raise AttributeError("Stimuli must be created before ending.")
+        self.stim.end_stim()
