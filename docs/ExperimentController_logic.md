@@ -1,38 +1,36 @@
-```mermaid
 stateDiagram-v2
-    state current_or_start <<fork>>
-    [*] --> current_or_start
-    current_or_start --> current
-    state exp_start <<join>>
-    current_or_start --> exp_start
-    current --> exp_start
-    exp_start --> start
-    next --> [*]
-    state start {
-        state "get_next" as gn_start
-        state "start_state" as st_start
-        state "update_state" as ud_start
-        state "end_state" as ed_start
-        [*] --> gn_start
-        gn_start --> st_start
-        st_start --> ud_start
-        ud_start --> ud_start: "while t<t_next"
-        ud_start --> ed_start
-        ed_start --> [*]
+    [*] --> exp_start
+    state exp_start <<choice>>
+    exp_start --> set_state: state = start
+    exp_start --> set_state: state = current\nnext forced to start
+    set_state --> run_state
+    state run_state {
+    state "state.get_next" as gn_curr
+    state "state.start_state" as st_curr
+    state "state.update_state" as ud_curr
+    state "state.end_state" as ed_curr
+    [*] --> gn_curr
+    gn_curr --> st_curr: set next, t_next
+    st_curr --> ud_curr
+    ud_curr --> ud_curr
+    ud_curr --> ed_curr: t >= t_next
+    ed_curr --> [*]
     }
-    state next_select <<choice>>
-    start --> next_select
-    next_select    
-    state next1 {
-        state "get_next" as gn_next1
-        state "start_state" as st_next1
-        state "update_state" as ud_next1
-        state "end_state" as ed_next1
-        [*] --> gn_next1
-        gn_next1 --> st_next1
-        st_next1 --> ud_next1
-        ud_next1 --> ud_next1
-        ud_next1 --> ed_next1
-        ed_next1 --> [*]
+    state update_trial {
+        state tr_check <<fork>>
+        [*] --> tr_check
+        tr_check --> end_trial: if state == trial_end, trial += 1
+        tr_check --> [*]
+        end_trial --> trial_calls: call trial-end funcs
+        state blk_check <<fork>>
+        trial_calls --> blk_check
+        blk_check --> end_block: if trial >= K_blocktrials
+        blk_check --> [*]
+        end_block --> block_calls: call block-end funcs, possibly force next
+        block_calls --> [*]
     }
-```
+    run_state --> update_trial
+    state change_state <<choice>>
+    update_trial --> change_state
+    change_state --> run_state
+    change_state --> [*]: block == N_block\nEnd Experiment    
