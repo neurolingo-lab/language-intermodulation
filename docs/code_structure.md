@@ -59,11 +59,11 @@ classDiagram
         +int  N_blocks
         +update()
     }
-    TwoWordState  --*  ExperimentStructure
-    OneWordState  --*  ExperimentStructure
-    FixationState  --*  ExperimentStructure
-    QueryState  --*  ExperimentStructure
-    InterTrialState  --*  ExperimentStructure
+    TwoWordState  --*  ExperimentController
+    OneWordState  --*  ExperimentController
+    FixationState  --*  ExperimentController
+    QueryState  --*  ExperimentController
+    InterTrialState  --*  ExperimentController
     class ExperimentLog["✅ ExperimentLog"]  {
         +PsychopyClock  clock
         +Dict~strToList~  trials
@@ -71,5 +71,5 @@ classDiagram
         +update
         +save
     }
-    ExperimentStructure --> ExperimentLog
+    ExperimentController --> ExperimentLog
 ```
