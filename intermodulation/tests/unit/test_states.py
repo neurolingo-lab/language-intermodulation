@@ -251,5 +251,5 @@ class TestFlickerState:
                 for k in nested_deepkeys(flickerstate.stim.states)
             ]
         )
-        assert len(list(nested_deepkeys(flickerstate.stim.stim)) == 0)
+        assert len(list(nested_deepkeys(flickerstate.stim.stim))) == 0
         flickerstate.window.close()

@@ -45,7 +45,7 @@ classDiagram
     FlickerStimState  <|--  FixationState
     FlickerStimState  <|--  QueryState
     FlickerStimState  <|--  InterTrialState
-    class  ExperimentStructure["⭕ ExperimentStructure"]  {
+    class  ExperimentController["⭕ ExperimentController"]  {
         +Mapping~HashableToMarkovState~  states
         +Mapping~Mapping~HashableToLogItem~~ log_events
         +Hashable  start
