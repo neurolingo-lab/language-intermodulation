@@ -77,7 +77,8 @@ class ExperimentLog:
         trial_nums = list(self.trials.keys())
         trialsdf = pd.DataFrame.from_records([self.trials[tn] for tn in sorted(trial_nums)])
         with open(fn, "wb") as fw:
-            pickle.dump({"continuous": self.continuous, "trials": trialsdf}, fw)
+            pickle.dump({"continuous": dict(self.continuous), "trials": trialsdf}, fw)
+        self.trialsdf = trialsdf
 
     async def _lazylog(self, trial_number, key, value):
         if asyncio.iscoroutine(value):

@@ -217,7 +217,7 @@ class FlickerStimState(MarkovState):
                 ts_idx = np.argwhere(goodclose).flatten()[-1]
                 keymask[ts_idx] = False
                 nested_set(newstates, key, not nested_get(self.stim.states, key))
-        changed = self.stim.update_stim(newstates)
+        self.log_onflip.extend(self.stim.update_stim(newstates))
 
     def _end_stim(self, t):
         if not hasattr(self, "stim"):
