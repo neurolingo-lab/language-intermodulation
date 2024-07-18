@@ -1,3 +1,4 @@
+```mermaid
 stateDiagram-v2
     [*] --> exp_start
     state exp_start <<choice>>
@@ -33,4 +34,5 @@ stateDiagram-v2
     state change_state <<choice>>
     update_trial --> change_state
     change_state --> run_state
-    change_state --> [*]: block == N_block\nEnd Experiment    
+    change_state --> [*]: block == N_block\nEnd Experiment
+```

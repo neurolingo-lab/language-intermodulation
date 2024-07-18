@@ -20,7 +20,7 @@ dependencies = [
     "matplotlib",
     "seaborn",
     "jupyter",
-    "mne",
+    "psychopy==2024.*",
 ]
 
 [project.optional-dependencies]
@@ -30,13 +30,13 @@ analysis = [
     "statsmodels",
     "mne[full]",
 ]
-experiment = [
-    "psychopy==2024.*"
+testing = [
+    "pytest",
 
 ]
 full = [
     "intermodulation[analysis]",
-    "intermodulation[experiment]",
+    "intermodulation[testing]",
 ]
 
 [tool.black]
@@ -44,3 +44,6 @@ line-length = 99
 
 [tool.pyright]
 # ignore = ["**/tests/**",]
+
+[tool.pytest.ini_options]
+addopts = "--cov=intermodulation --cov-report xml:cov.xml"
