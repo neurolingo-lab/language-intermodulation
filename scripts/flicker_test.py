@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import psychopy.visual
@@ -30,7 +32,7 @@ LOGGABLES = {
         "flicker_switches",
     ],
 }
-FREQUENCIES = np.arange(2, 60, 0.2)
+FREQUENCIES = np.arange(2, 60, step=0.2)
 TRIAL_DUR = 3.0
 
 
@@ -88,34 +90,18 @@ for i, freq in enumerate(FREQUENCIES):
     window.flip()
     logger.log_flip()
 window.close()
-logger.save("flicker_test_logs.pkl")
+logger.save(Path("../data/flicker_test_logs.pkl"))
 
 stats = []
 for trial, logs in logger.continuous.items():
     diff = pd.Series(np.diff(a=logs["flicker_switches"]))
+    f_diff = 1 / (2 * diff)
     diffstats = diff.describe().to_dict()
+    fstats = f_diff.describe().to_dict()
     screenstats = {k + "_interval": v for k, v in diffstats.items()}
-    screenstats["mean_f"] = 1 / (2 * screenstats["mean_interval"])
-    finalstats = {"target_f": FREQUENCIES[trial], **screenstats}
+    fscreenstats = {k + "_f": v for k, v in fstats.items()}
+    screenstats["mean_f_old"] = 1 / (2 * screenstats["mean_interval"])
+    finalstats = {"target_f": FREQUENCIES[trial], **screenstats, **fscreenstats}
     stats.append(finalstats)
 statsdf = logger.trialsdf.join(pd.DataFrame(stats))
-statsdf.reindex(
-    columns=[
-        "trial_number",
-        "duration",
-        "trial_start",
-        "trial_end",
-        "target_f",
-        "mean_f",
-        "count_interval",
-        "mean_interval",
-        "std_interval",
-        "min_interval",
-        "max_interval",
-        "25%_interval",
-        "50%_interval",
-        "75%_interval",
-    ],
-    inplace=True,
-)
-statsdf.to_csv("flicker_test_stats.csv", index=False)
+statsdf.to_csv(Path("../data/flicker_test_stats.csv").resolve(), index=False)

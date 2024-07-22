@@ -182,7 +182,7 @@ class FlickerStimState(MarkovState):
                         keys,
                         np.arange(
                             self.stimon_t,  # type: ignore
-                            self.precompute_flicker_t,
+                            self.stimon_t + self.precompute_flicker_t,
                             1 / (2 * nested_get(self.frequencies, keys)),  # type: ignore
                         ),
                     )
