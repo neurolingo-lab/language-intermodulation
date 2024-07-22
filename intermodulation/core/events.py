@@ -4,6 +4,7 @@ from collections import defaultdict
 from collections.abc import Collection, Hashable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -73,7 +74,9 @@ class ExperimentLog:
             asyncio.run(self._process_flip_logs())
             self.log_on_flip = []
 
-    def save(self, fn: str):
+    def save(self, fn: str | Path):
+        if isinstance(fn, Path):
+            fn = fn.resolve()
         trial_nums = list(self.trials.keys())
         trialsdf = pd.DataFrame.from_records([self.trials[tn] for tn in sorted(trial_nums)])
         with open(fn, "wb") as fw:

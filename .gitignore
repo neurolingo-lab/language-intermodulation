@@ -3,8 +3,9 @@
 /__pycache__/*
 /data/*
 *.psyexp
+*.pkl
+*.csv
 .venv
-*/*.pkl
 */.*/
 */.coverage
 */cov.xml
