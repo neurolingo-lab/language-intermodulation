@@ -1,3 +1,6 @@
+from collections.abc import Mapping, Sequence
+
+
 def nested_iteritems(d):
     for k, v in d.items():
         if isinstance(v, dict):
@@ -56,3 +59,45 @@ def nested_pop(d, keys):
 
 async def lazy_time(clock):
     return clock.getTime()
+
+def parse_calls(call_list):
+    """
+    Parse a list of calls to be made during a state.
+
+    Parameters
+    ----------
+    call_list : list[Tuple[Callable, ...]]
+        List of functions to call during the state.
+    index : int
+        Index of the call list to parse.
+
+    Returns
+    -------
+    Callable
+        The callable function to be called.
+    Tuple
+        The arguments to be passed to the callable.
+    Mapping
+        The keyword arguments to be passed to the callable.
+    """
+    for call in call_list:
+        if not isinstance(call, Sequence):
+            raise TypeError("Call list must be a list-like.")
+        sequences = tuple(filter(lambda x: isinstance(x, Sequence), call))
+        mappings = tuple(filter(lambda x: isinstance(x, Mapping), call))
+        f = call[0]
+        if len(sequences) > 0:
+            args = sequences[0]
+            if len(sequences) > 1:
+                raise ValueError("Only one sequence of arguments is allowed.")
+        else:
+            args = ()
+        
+        if len(mappings) > 0:
+            kwargs = mappings[0]
+            if len(mappings) > 1:
+                raise ValueError("Only one mapping of keyword arguments is allowed.")
+        else:
+            kwargs = {}
+
+        yield f, args, kwargs

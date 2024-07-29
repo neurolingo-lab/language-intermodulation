@@ -16,19 +16,19 @@ def clock():
 class TestExpLog:
     def test_explog_init(self):
         log = ExperimentLog()
-        assert log.trials == {}
+        assert log.states == {}
         assert log.continuous == {}
         assert log.log_on_flip == []
 
     def test_explog_log_noasync(self):
         log = ExperimentLog()
         log.log(1, "trial_number", 1)
-        assert 1 in log.trials
-        assert log.trials[1]["trial_number"] == 1
+        assert 1 in log.states
+        assert log.states[1]["state_number"] == 1
         assert len(log.continuous[1]) == 4
         assert all(len(log.continuous[1][k]) == 0 for k in log.continuous[1])
         log.log(1, "word_1", "hello")
-        assert log.trials[1]["word_1"] == "hello"
+        assert log.states[1]["word_1"] == "hello"
         assert len(log.continuous[1]) == 4
         assert all(len(log.continuous[1][k]) == 0 for k in log.continuous[1])
 
@@ -77,14 +77,14 @@ class TestExpLog:
         log.log(2, "word_1", "hello")
         log.log(2, "word_1", "world")
         log.log_flip()
-        assert len(log.trials) == 2
+        assert len(log.states) == 2
         assert len(log.continuous) == 2
-        all_tr_keys = log.loggables["per_trial"]
-        for k in ["word_1", "word_2", "trial_number"]:
-            assert log.trials[1][k] != log.trials[3][k]
-            assert log.trials[2][k] != log.trials[3][k]
+        all_tr_keys = log.loggables["per_state"]
+        for k in ["word_1", "word_2", "state_number"]:
+            assert log.states[1][k] != log.states[3][k]
+            assert log.states[2][k] != log.states[3][k]
             all_tr_keys.remove(k)
         for k in all_tr_keys:
-            assert np.isnan(log.trials[1][k])
-            assert np.isnan(log.trials[2][k])
-            assert np.isnan(log.trials[3][k])
+            assert np.isnan(log.states[1][k])
+            assert np.isnan(log.states[2][k])
+            assert np.isnan(log.states[3][k])

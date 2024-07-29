@@ -32,6 +32,7 @@ analysis = [
 ]
 testing = [
     "pytest",
+    "pytest-mock",
 
 ]
 full = [
@@ -43,7 +44,7 @@ full = [
 line-length = 99
 
 [tool.pyright]
-# ignore = ["**/tests/**",]
+ignore = ["**/tests/**",]
 
 [tool.pytest.ini_options]
 addopts = "--cov=intermodulation --cov-report xml:cov.xml"

@@ -40,24 +40,19 @@ def clock():
 
 
 @pytest.fixture
-def logger():
-    return events.ExperimentLog()
-
-
-@pytest.fixture
 def stim(window, constructors):
     return cstim.StatefulStim(window=window, constructors=constructors)
 
 
 @pytest.fixture
-def flickerstate(lowfreqs, window, clock, logger, stim):
+def flickerstate(lowfreqs, window, clock, stim, constructor_kwargs):
     return cstates.FlickerStimState(
         next="next",
         dur=1.0,
         frequencies=lowfreqs,
         window=window,
         stim=stim,
-        logger=logger,
+        stim_constructor_kwargs=constructor_kwargs,
         clock=clock,
     )
 
@@ -121,9 +116,9 @@ class TestMarkovState:
         state = cstates.MarkovState(
             next="next",
             dur=1.0,
-            start_calls=[updatelog],
-            update_calls=[updatelog],
-            end_calls=[updatelog],
+            start_calls=[(updatelog,)],
+            update_calls=[(updatelog,)],
+            end_calls=[(updatelog,)],
         )
         state.start_state(0.0)
         assert call_log[0] == 0.0
@@ -141,20 +136,19 @@ class TestMarkovState:
         assert state.log_onflip == []
         # see if adding the clear call to the end state func works
         state.log_onflip = ["test"]
-        state.end_calls.append(lambda _: state.clear_logitems())
+        state.end_calls.append((lambda t: state.clear_logitems(),))
         state.end_state(0.0)
         assert state.log_onflip == []
 
 
 class TestFlickerState:
-    def test_flicker_init(self, lowfreqs, logger, stim):
+    def test_flicker_init(self, lowfreqs, stim):
         state = cstates.FlickerStimState(
             next="next",
             dur=1.0,
             frequencies=lowfreqs,
             window=None,
             stim=stim,
-            logger=logger,
             clock=None,
         )
         assert state.frequencies == lowfreqs
@@ -163,9 +157,9 @@ class TestFlickerState:
         assert hasattr(state, "precompute_flicker_t")
         assert hasattr(state, "framerate")
         for f in state.start_calls:
-            assert callable(f)
+            assert callable(f[0])
         for f in state.update_calls:
-            assert callable(f)
+            assert callable(f[0])
 
     def test_flicker_create(self, flickerstate, constructor_kwargs):
         flickerstate._create_stim(0.0, constructor_kwargs)
@@ -180,7 +174,7 @@ class TestFlickerState:
 
     def test_flicker_compute(self, lowfreqs, flickerstate):
         flickerstate.stimon_t = 0.0
-        flickerstate._compute_flicker()
+        flickerstate._compute_flicker(0.0)
         w1_target = np.arange(
             0, flickerstate.precompute_flicker_t, 1 / (2 * lowfreqs["words"]["w1"])
         )
@@ -193,7 +187,7 @@ class TestFlickerState:
         assert flickerstate.target_switches["shapes"]["fixdot"] is None
 
     def test_flicker_start(self, flickerstate, constructor_kwargs):
-        flickerstate.start_state(0.0, constructor_kwargs)
+        flickerstate.start_state(0.0)
         assert flickerstate.stimon_t == 0.0
         assert all(
             [
@@ -205,7 +199,7 @@ class TestFlickerState:
 
     @pytest.mark.parametrize("lowfreqs", get_flicker_set())
     def test_flicker_update_stim_twowords(
-        self, lowfreqs, window, stim, logger, clock, constructor_kwargs
+        self, lowfreqs, window, stim, clock, constructor_kwargs
     ):
         flickers = [v for k, v in nested_iteritems(lowfreqs) if v not in (None, 0.0)]
         flickerkeys = [k for k, v in nested_iteritems(lowfreqs) if v not in (None, 0.0)]
@@ -218,11 +212,11 @@ class TestFlickerState:
             frequencies=lowfreqs,
             window=window,
             stim=stim,
-            logger=logger,
+            stim_constructor_kwargs=constructor_kwargs,
             clock=clock,
             framerate=bestframerate,
         )
-        flickerstate.start_state(0.0, constructor_kwargs)
+        flickerstate.start_state(0.0)
         predstates = {}
         for k in flickerkeys:
             tgt = nested_get(flickerstate.target_switches, k)
@@ -243,7 +237,7 @@ class TestFlickerState:
                 )
 
     def test_flicker_end(self, flickerstate, constructor_kwargs):
-        flickerstate.start_state(0.0, constructor_kwargs)
+        flickerstate.start_state(0.0)
         flickerstate.end_state(1.0)
         assert all(
             [
