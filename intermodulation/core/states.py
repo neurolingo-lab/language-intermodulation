@@ -2,7 +2,7 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from numbers import Number
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Tuple
 
 import numpy as np
 import psychopy.core
@@ -11,7 +11,7 @@ import psychopy.visual
 import intermodulation.core.events as events
 import intermodulation.core.stimuli as stimuli
 from intermodulation.core import _types
-from intermodulation.utils import nested_deepkeys, nested_get, nested_set
+from intermodulation.utils import nested_deepkeys, nested_get, nested_set, parse_calls
 
 
 @dataclass
@@ -34,15 +34,17 @@ class MarkovState(_types.MarkovState):
         Probabilities of transitioning to the next state(s). If `next` is a single state, this
         attribute is not needed. If `next` is a sequence of states, this attribute must be a
         callable that returns an index in `next` based on the probabilities of transitioning.
-    start_calls : list[Callable]
-        List of functions to call when the state is started. Functions must take the state and
-        the current time as arguments. Default is an empty list.
-    end_calls : list[Callable]
-        List of functions to call when the state is ended. Functions must take the state and
-        the current time as arguments. Default is an empty list.
-    update_calls : list[Callable]
-        List of functions to call when the state is updated. Functions must take the state and
-        the current time as arguments. Default is an empty list.
+    start_calls : list[Tuple[Callable, ...]]
+        List of functions to call when the state is started. Each element must be a tuple with the
+        callable as the first item. An additional sequence after the callable will be used as
+        arguments, and a mapping will be used as kwargs. All functions will be called with the time
+        as a first argument. Default is an empty list.
+    end_calls : list[Tuple[Callable, ...]]
+        List of functions to call when the state is ended. Same structrue as `start_calls`.
+        Default is an empty list.
+    update_calls : list[Tuple[Callable, ...]]
+        List of functions to call when the state is updated. Same structrue as `start_calls`.
+        Default is an empty list.
     log_onflip : list[str]
         List of attributes to log when the display is flipped. Default is an empty list.
     """
@@ -50,15 +52,15 @@ class MarkovState(_types.MarkovState):
     next: Sequence[Hashable] | Hashable
     dur: float | Callable
     transition: None | Callable = None
-    start_calls: list[Callable] = field(default_factory=list)
-    end_calls: list[Callable] = field(default_factory=list)
-    update_calls: list[Callable] = field(default_factory=list)
+    start_calls: list[Tuple[Callable, ...]] = field(default_factory=list)
+    end_calls: list[Tuple[Callable, ...]] = field(default_factory=list)
+    update_calls: list[Tuple[Callable, ...]] = field(default_factory=list)
     log_onflip: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         if not isinstance(self.next, (Hashable, Sequence)):
             raise TypeError("Next state must be a hashable or sequence of hashables.")
-        if not isinstance(self.dur, (float, Callable)):
+        if not isinstance(self.dur, (Number, Callable)):
             raise TypeError(
                 "Duration must be a float or callable function that gives an index" " into `next`."
             )
@@ -100,7 +102,7 @@ class MarkovState(_types.MarkovState):
                 dur = self.dur()
         return next, dur
 
-    def start_state(self, t, *args, **kwargs):
+    def start_state(self, t):
         """
         Initiate state by calling all functions in `start_calls`.
 
@@ -109,10 +111,10 @@ class MarkovState(_types.MarkovState):
         t : float
             time of state initiation (usually next flip).
         """
-        for f in self.start_calls:
+        for f, args, kwargs in parse_calls(self.start_calls):
             f(t, *args, **kwargs)
 
-    def update_state(self, t, *args, **kwargs):
+    def update_state(self, t):
         """
         Update state by calling all functions in `update_calls`.
 
@@ -121,10 +123,10 @@ class MarkovState(_types.MarkovState):
         t : float
             time of state update (usually next flip).
         """
-        for f in self.update_calls:
+        for f, args, kwargs in parse_calls(self.update_calls):
             f(t, *args, **kwargs)
 
-    def end_state(self, t, *args, **kwargs):
+    def end_state(self, t):
         """
         End state by calling all functions in `end_calls`.
 
@@ -133,7 +135,7 @@ class MarkovState(_types.MarkovState):
         t : float
             time of state end (usually next flip).
         """
-        for f in self.end_calls:
+        for f, args, kwargs in parse_calls(self.end_calls):
             f(t, *args, **kwargs)
 
     def clear_logitems(self):
@@ -148,26 +150,27 @@ class FlickerStimState(MarkovState):
     frequencies: Mapping[Hashable, Number | Mapping] = field(kw_only=True)
     window: psychopy.visual.Window = field(kw_only=True)
     stim: stimuli.StatefulStim = field(kw_only=True)
-    logger: events.ExperimentLog = field(kw_only=True)
+    stim_constructor_kwargs: Mapping = field(default_factory=dict)
     clock: psychopy.core.Clock = field(kw_only=True)
     framerate: float = 60.0
     precompute_flicker_t = 100.0
 
     def __post_init__(self):
-        self.start_calls.append(self._create_stim)
-        self.start_calls.append(self._compute_flicker)
-        self.update_calls.append(self._update_stim)
-        self.end_calls.append(self._end_stim)
+        self.start_calls.append((self._create_stim, (self.stim_constructor_kwargs,)))
+        self.start_calls.append((self._compute_flicker,))
+        self.update_calls.append((self._update_stim,))
+        self.end_calls.append((self._end_stim,))
         super().__post_init__()
 
-    def _create_stim(self, t, constructor_kwargs, *args, **kwargs):
+    def _create_stim(self, t, constructor_kwargs):
         if not hasattr(self, "window"):
             raise AttributeError("Window must be set as state attribute before creating stimuli.")
         self.clear_logitems()
         self.stim.start_stim(constructor_kwargs)
         self.stimon_t = t
+        self.log_onflip
 
-    def _compute_flicker(self, *args, **kwargs):
+    def _compute_flicker(self, t):
         if not hasattr(self, "stimon_t"):
             raise AttributeError("Stimulus must be created before computing flicker.")
         allkeys = list(nested_deepkeys(self.stim.construct))

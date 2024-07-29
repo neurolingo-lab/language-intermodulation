@@ -7,5 +7,5 @@
 *.csv
 .venv
 */.*/
-*/.coverage
-*/cov.xml
+*.coverage
+*cov.xml
