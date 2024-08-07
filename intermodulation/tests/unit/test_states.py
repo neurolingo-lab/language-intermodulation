@@ -6,12 +6,10 @@ import psychopy.visual
 import pytest
 from scipy.interpolate import interp1d
 
-import intermodulation.core.events as events
 import intermodulation.core.states as cstates
 import intermodulation.core.stimuli as cstim
-from intermodulation import states
-from intermodulation.tests.unit.test_stimuli import constructor_kwargs, constructors, window
-from intermodulation.utils import nested_deepkeys, nested_get, nested_iteritems, nested_set
+from intermodulation.utils import (nested_deepkeys, nested_get,
+                                   nested_iteritems, nested_set)
 
 
 def get_flicker_set():
@@ -19,7 +17,6 @@ def get_flicker_set():
     basekeys = list(nested_deepkeys(basedict))
     valueset = [4.0, 5.0, 0.0, None]
     fullset = []
-    combs = [*it.product(valueset, repeat=len(basekeys))]
 
     for vals in it.product(valueset, repeat=len(basekeys)):
         subdict = {}
@@ -242,6 +239,11 @@ class TestFlickerState:
         assert all(
             [
                 not nested_get(flickerstate.stim.states, k)
+                for k in nested_deepkeys(flickerstate.stim.states)
+            ]
+        )
+        assert len(list(nested_deepkeys(flickerstate.stim.stim))) == 0
+        flickerstate.window.close()
                 for k in nested_deepkeys(flickerstate.stim.states)
             ]
         )
