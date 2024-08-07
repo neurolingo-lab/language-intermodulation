@@ -44,7 +44,13 @@ full = [
 line-length = 99
 
 [tool.pyright]
-ignore = ["**/tests/**",]
+ignore = [
+    "**/tests/**",
+    "*.ipynb",
+    ]
 
 [tool.pytest.ini_options]
 addopts = "--cov=intermodulation --cov-report xml:cov.xml"
+
+[tool.ruff]
+extend-include = ["*.ipynb"]

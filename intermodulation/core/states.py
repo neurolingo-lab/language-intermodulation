@@ -2,13 +2,12 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from numbers import Number
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import Tuple
 
 import numpy as np
 import psychopy.core
 import psychopy.visual
 
-import intermodulation.core.events as events
 import intermodulation.core.stimuli as stimuli
 from intermodulation.core import _types
 from intermodulation.utils import nested_deepkeys, nested_get, nested_set, parse_calls
@@ -153,7 +152,7 @@ class FlickerStimState(MarkovState):
     stim_constructor_kwargs: Mapping = field(default_factory=dict)
     clock: psychopy.core.Clock = field(kw_only=True)
     framerate: float = 60.0
-    precompute_flicker_t = 100.0
+    precompute_flicker_t: float = 100.0
 
     def __post_init__(self):
         self.start_calls.append((self._create_stim, (self.stim_constructor_kwargs,)))
@@ -221,6 +220,12 @@ class FlickerStimState(MarkovState):
                 keymask[ts_idx] = False
                 nested_set(newstates, key, not nested_get(self.stim.states, key))
         self.log_onflip.extend(self.stim.update_stim(newstates))
+
+    def _compute_flicker_frame_count(self, t):
+        pass
+
+    def _update_stim_frame_count(self, t):
+        pass
 
     def _end_stim(self, t):
         if not hasattr(self, "stim"):
