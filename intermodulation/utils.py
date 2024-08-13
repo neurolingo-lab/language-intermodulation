@@ -1,5 +1,7 @@
 from collections.abc import Mapping, Sequence
 
+import numpy as np
+
 
 def nested_iteritems(d):
     for k, v in d.items():
@@ -60,6 +62,7 @@ def nested_pop(d, keys):
 async def lazy_time(clock):
     return clock.getTime()
 
+
 def parse_calls(call_list):
     """
     Parse a list of calls to be made during a state.
@@ -92,7 +95,7 @@ def parse_calls(call_list):
                 raise ValueError("Only one sequence of arguments is allowed.")
         else:
             args = ()
-        
+
         if len(mappings) > 0:
             kwargs = mappings[0]
             if len(mappings) > 1:
@@ -101,3 +104,36 @@ def parse_calls(call_list):
             kwargs = {}
 
         yield f, args, kwargs
+
+
+def get_nearest_f(target: float, framerate: float) -> float:
+    """
+    Get the nearest possible flicker frequency to a target f given an underlying framerate. Note
+    that in practice you are constrained by *double* the target frame rate due to on/off cycles.
+
+    Parameters
+    ----------
+    target : float
+        The target flicker frame rate in Hz.
+    framerate : float
+        The framerate of the underlying system in Hz.
+
+    Returns
+    -------
+    float
+        The closest possible frequency to the target given the underlying framerate.
+    """
+    mult = np.round(framerate / (2 * target))
+    return (framerate / mult) / 2
+
+
+def flip_state(t, target_t, keymask, framerate):
+    close_enough = np.isclose(t, target_t, rtol=0.0, atol=1 / (2 * framerate) - 1e-6)
+    past_t = t > target_t
+    goodclose = (close_enough & keymask) | (past_t & keymask)
+    # breakpoint()
+    if np.any(goodclose):
+        ts_idx = np.argwhere(goodclose).flatten()[-1]
+        keymask[ts_idx] = False
+        return True, keymask
+    return False, keymask
