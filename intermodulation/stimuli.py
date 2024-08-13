@@ -67,14 +67,14 @@ class TwoWordStim(ics.StatefulStim):
         # Set up the stimulus constructors and arguments
         self.word_constructor_kwargs = {
             "words": {
-                0: {
+                "word1": {
                     "text": self.word1,
                     "pos": (-self.separation / 2, 0),
                     "anchorHoriz": "right",
                     "alignText": "right",
                     **self.text_config,
                 },
-                1: {
+                "word2": {
                     "text": self.word2,
                     "pos": (self.separation / 2, 0),
                     "anchorHoriz": "left",
@@ -85,7 +85,7 @@ class TwoWordStim(ics.StatefulStim):
             "fixation": self.dot_config,
         }
         constructors = {
-            "words": {0: psychopy.visual.TextStim, 1: psychopy.visual.TextStim},
+            "words": {"word1": psychopy.visual.TextStim, "word2": psychopy.visual.TextStim},
             "fixation": psychopy.visual.ShapeStim,
         }
         super().__init__(self.win, constructors)
@@ -100,8 +100,8 @@ class TwoWordStim(ics.StatefulStim):
                 "modify the config after instantiation, modify the "
                 "`.word_constructor_kwargs` attribute."
             )
-        self.word_constructor_kwargs["words"][0]["text"] = self.word1
-        self.word_constructor_kwargs["words"][1]["text"] = self.word2
+        self.word_constructor_kwargs["words"]["word1"]["text"] = self.word1
+        self.word_constructor_kwargs["words"]["word2"]["text"] = self.word2
         super().start_stim(self.word_constructor_kwargs)
 
 
@@ -114,7 +114,7 @@ class FixationStim(ics.StatefulStim):
         self.dot_constructor_kwargs = {"fixation": self.dot_kwargs}
         super().__init__(self.win, {"fixation": psychopy.visual.ShapeStim})
 
-    def start_stim(self, **kwargs):
+    def start_stim(self, *args, **kwargs):
         if (
             hasattr(kwargs, "stim_constructor_kwargs")
             and len(kwargs["stim_constructor_kwargs"].keys()) > 0
