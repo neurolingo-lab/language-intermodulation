@@ -24,12 +24,12 @@ WINDOW_CONFIG = {
     "units": "deg",
     "checkTiming": False,
 }
-FLICKER_RATES = np.array([20.0, 30.0])  # Hz
+FLICKER_RATES = np.array([6., 10.0])  # Hz
 WORDS = pd.read_csv("../words_v1.csv")
 ITI_BOUNDS = [0.2, 0.5]  # seconds
 FIXATION_DURATION = 1.0  # seconds
 WORD_DURATION = 2.0  # seconds
-N_BLOCKS = 3  # number of blocks of stimuli to run (each block is the full word list, permuted)
+N_BLOCKS = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 WORD_SEP: int = 5  # word separation in degrees
 TEXT_CONFIG = {
     "font": "Arial",
@@ -55,7 +55,7 @@ DOT_CONFIG = {
 
 rng = np.random.default_rng(RANDOM_SEED)
 window = psychopy.visual.Window(**WINDOW_CONFIG)
-framerate = window.getActualFrameRate()
+framerate = np.round(window.getActualFrameRate())
 clock = psychopy.core.Clock()
 logger = ExperimentLog()
 states = {
@@ -88,6 +88,10 @@ def update_words():
     states["words"].wordcount += 1
     return
 
+def reset_words():
+    states["words"].wordcount = 0
+    return
+
 
 controller = ExperimentController(
     states=states,
@@ -97,11 +101,12 @@ controller = ExperimentController(
     clock=clock,
     trial_endstate="words",
     N_blocks=N_BLOCKS,
-    K_blocktrials=len(WORDS),
+    K_blocktrials=10,
     trial_calls=[update_words],
+    block_calls=[reset_words],
 )
 
 controller.run_experiment()
-logger.save(Path("../data/word_experiment_test.csv").resolve())
+logger.save(Path("../data/word_experiment_test.pkl").resolve())
 
 window.close()
