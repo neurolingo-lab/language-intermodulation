@@ -1,11 +1,10 @@
-import asyncio
-from typing import TYPE_CHECKING, TypedDict
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 import numpy as np
-import psychtoolbox as ptb
-from psychopy.visual import BaseVisualStim, TextStim, Window
-from psychopy.visual.shape import ShapeStim
-from scipy.interpolate import interp1d
+import psychopy.visual
+
+import intermodulation.core.stimuli as ics
 
 # constants
 WINDOW_CONFIG = {
@@ -53,68 +52,75 @@ DOT_CONFIG = {
 WORD_SEP: int = 4  # word separation in degrees
 FLICKER_RATES = np.array([20.0, 2.0])  # Hz
 
-# Special types to check
-WordsDict = TypedDict("WordsDict", {0: bool, 1: bool})
-ShapesDict = TypedDict("ShapesDict", {"dot": bool})
-StimUpdate = TypedDict("StimUpdate", {"words": WordsDict, "shapes": ShapesDict})
 
+@dataclass
+class TwoWordStim(ics.StatefulStim):
+    win: psychopy.visual.Window
+    word1: str
+    word2: str
+    separation: float
+    fixation_dot: bool = True
+    text_config: Mapping = field(default_factory=TEXT_CONFIG.copy)
+    dot_config: Mapping = field(default_factory=DOT_CONFIG.copy)
 
-class TwoWordStim:
-    def __init__(
-        self,
-        window: Window,
-        words: tuple[str, str] = ["test", "words"],
-        text_config: dict[str, str | float | None] = TEXT_CONFIG,
-        dot_config: dict[tuple[float, float], str, str, str, str, bool] = DOT_CONFIG,
-        word_sep: int = WORD_SEP,
-    ):
-        self.win = window
-        self.words = {
-            0: TextStim(
-                win=self.win,
-                text=words[0],
-                pos=(-(word_sep / 2), 0),
-                anchorHoriz="right",
-                alignText="right",
-                **text_config,
-            ),
-            1: TextStim(
-                win=self.win,
-                text=words[1],
-                pos=(word_sep / 2, 0),
-                anchorHoriz="left",
-                alignText="left",
-                **text_config,
-            ),
+    def __post_init__(self):
+        # Set up the stimulus constructors and arguments
+        self.word_constructor_kwargs = {
+            "words": {
+                0: {
+                    "text": self.word1,
+                    "pos": (-self.separation / 2, 0),
+                    "anchorHoriz": "right",
+                    "alignText": "right",
+                    **self.text_config,
+                },
+                1: {
+                    "text": self.word2,
+                    "pos": (self.separation / 2, 0),
+                    "anchorHoriz": "left",
+                    "alignText": "left",
+                    **self.text_config,
+                },
+            },
+            "fixation": self.dot_config,
         }
-        self.shapes = {
-            "fixdot": ShapeStim(
-                win=self.win,
-                **dot_config,
+        constructors = {
+            "words": {0: psychopy.visual.TextStim, 1: psychopy.visual.TextStim},
+            "fixation": psychopy.visual.ShapeStim,
+        }
+        super().__init__(self.win, constructors)
+
+    def start_stim(self, **kwargs):
+        if (
+            hasattr(kwargs, "stim_constructor_kwargs")
+            and len(kwargs["stim_constructor_kwargs"].keys()) > 0
+        ):
+            raise ValueError(
+                "Cannot pass stim_constructor_kwargs to TwoWordStim. If you want to "
+                "modify the config after instantiation, modify the "
+                "`.word_constructor_kwargs` attribute."
             )
-        }
-        self.states = {
-            "words": {0: False, 1: False},
-            "shapes": {"fixdot": False},
-        }
-        self.shapes["fixdot"].setAutoDraw(False)
-        for word in self.words:
-            self.words[word].setAutoDraw(False)
-        self.start_t = None
+        self.word_constructor_kwargs["words"][0]["text"] = self.word1
+        self.word_constructor_kwargs["words"][1]["text"] = self.word2
+        super().start_stim(self.word_constructor_kwargs)
 
-    def update_stim(self, states: StimUpdate):
-        changed = []
-        for key in states:
-            attr = getattr(self, key)
-            for subkey, state in states[key].items():
-                attr[subkey].setAutoDraw(state)
-                if self.states[key][subkey] != state:
-                    changed.append((key, subkey))
-        self.states = states
-        return changed
 
-    def remove_stim(self):
-        for word in self.words:
-            self.words[word].setAutoDraw(False)
-        for shape in self.shapes:
-            self.shapes[shape].setAutoDraw(False)
+@dataclass
+class FixationStim(ics.StatefulStim):
+    win: psychopy.visual.Window
+    dot_kwargs: Mapping = field(default_factory=DOT_CONFIG.copy)
+
+    def __post_init__(self):
+        self.dot_constructor_kwargs = {"fixation": self.dot_kwargs}
+        super().__init__(self.win, {"fixation": psychopy.visual.ShapeStim})
+
+    def start_stim(self, **kwargs):
+        if (
+            hasattr(kwargs, "stim_constructor_kwargs")
+            and len(kwargs["stim_constructor_kwargs"].keys()) > 0
+        ):
+            raise ValueError(
+                "Cannot pass stim_constructor_kwargs to FixationStim. If you want to modify the "
+                "config after instantiation, modify the `.dot_constructor_kwargs` attribute."
+            )
+        super().start_stim(self.dot_constructor_kwargs)

@@ -2,7 +2,7 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from numbers import Number
-from typing import Tuple
+from typing import Tuple, Literal
 
 import numpy as np
 import psychopy.core
@@ -10,7 +10,7 @@ import psychopy.visual
 
 import intermodulation.core.stimuli as stimuli
 from intermodulation.core import _types
-from intermodulation.utils import nested_deepkeys, nested_get, nested_set, parse_calls
+from intermodulation.utils import get_nearest_f, nested_deepkeys, nested_get, nested_set, parse_calls
 
 
 @dataclass
@@ -152,12 +152,19 @@ class FlickerStimState(MarkovState):
     stim_constructor_kwargs: Mapping = field(default_factory=dict)
     clock: psychopy.core.Clock = field(kw_only=True)
     framerate: float = 60.0
+    flicker_handler: Literal["target_t", "frame_count"] = "target_t"
     precompute_flicker_t: float = 100.0
 
     def __post_init__(self):
         self.start_calls.append((self._create_stim, (self.stim_constructor_kwargs,)))
-        self.start_calls.append((self._compute_flicker,))
-        self.update_calls.append((self._update_stim,))
+        if self.flicker_handler == "target_t":
+            self.start_calls.append((self._compute_flicker,))
+            self.update_calls.append((self._update_stim,))
+        elif self.flicker_handler == "frame_count":
+            self.start_calls.append((self._compute_flicker_frame_count,))
+            self.update_calls.append((self._update_stim_frame_count,))
+        else:
+            raise ValueError("Flicker handler must be 'target_t' or 'frame_count'.")
         self.end_calls.append((self._end_stim,))
         super().__post_init__()
 
@@ -167,6 +174,8 @@ class FlickerStimState(MarkovState):
         self.clear_logitems()
         self.stim.start_stim(constructor_kwargs)
         self.stimon_t = t
+        if self.flicker_handler == "frame_count":
+            self.frame_num = 0
         self.log_onflip
 
     def _compute_flicker(self, t):
@@ -176,16 +185,18 @@ class FlickerStimState(MarkovState):
         ts = {}
         for keys in allkeys:
             try:
-                if nested_get(self.frequencies, keys) in (None, 0):
+                f = nested_get(self.frequencies, keys)
+                if f in (None, 0):
                     nested_set(ts, keys, None)
                 else:
+                    nearest = get_nearest_f(f, self.framerate)
                     nested_set(
                         ts,
                         keys,
                         np.arange(
                             self.stimon_t,  # type: ignore
                             self.stimon_t + self.precompute_flicker_t,
-                            1 / (2 * nested_get(self.frequencies, keys)),  # type: ignore
+                            1 / (2 * f),  # type: ignore
                         ),
                     )
             except KeyError:
@@ -198,6 +209,28 @@ class FlickerStimState(MarkovState):
             if len(mask.shape) > 0:
                 mask[0] = False
             nested_set(self.target_mask, k, mask)
+
+    def _compute_flicker_frame_count(self, t):
+        if not hasattr(self, "stimon_t") or not hasattr(self, "frame_num"):
+            raise AttributeError("Stimulus must be created before computing flicker.")
+        allkeys = list(nested_deepkeys(self.stim.construct))
+        fs = {}
+        for keys in allkeys:
+            try:
+                if nested_get(self.frequencies, keys) in (None, 0):
+                    nested_set(fs, keys, None)
+                else:
+                    nested_set(
+                        fs,
+                        keys,
+                        np.arange(
+                            self.stimon_t,  # type: ignore
+                            self.stimon_t + self.precompute_flicker_t,
+                            1 / (2 * nested_get(self.frequencies, keys)),  # type: ignore
+                        ),
+                    )
+            except KeyError:
+                nested_set(fs, keys, None)
 
     def _update_stim(self, t):
         if not hasattr(self, "stim"):
@@ -220,9 +253,6 @@ class FlickerStimState(MarkovState):
                 keymask[ts_idx] = False
                 nested_set(newstates, key, not nested_get(self.stim.states, key))
         self.log_onflip.extend(self.stim.update_stim(newstates))
-
-    def _compute_flicker_frame_count(self, t):
-        pass
 
     def _update_stim_frame_count(self, t):
         pass
