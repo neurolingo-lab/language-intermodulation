@@ -172,7 +172,7 @@ class FlickerStimState(MarkovState):
         if not hasattr(self, "window"):
             raise AttributeError("Window must be set as state attribute before creating stimuli.")
         self.clear_logitems()
-        self.stim.start_stim(constructor_kwargs)
+        self.stim.start_stim(constructor_kwargs=constructor_kwargs)
         self.stimon_t = t
         if self.flicker_handler == "frame_count":
             self.frame_num = 0

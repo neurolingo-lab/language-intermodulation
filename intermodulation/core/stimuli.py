@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from intermodulation.utils import maxdepth_keys, nested_get, nested_deepkeys, nested_pop, nested_set
 
 
@@ -19,9 +20,9 @@ class StatefulStim:
         const_keys = nested_deepkeys(self.construct)
         all_const_keys = maxdepth_keys(self.construct, depth=1000)
         kw_keys = maxdepth_keys(constructor_kwargs, depth=-1)
-        if not set(kw_keys).issubset(set(all_const_keys)):
+        if not set(all_const_keys).issubset(set(kw_keys)):
             raise ValueError("Mismatched keys between constructor and kwargs.")
-        if any(["win" in nested_get(constructor_kwargs, k) for k in kw_keys]):
+        if any(["win" in nested_get(constructor_kwargs, k) for k in kw_keys if isinstance(nested_get(constructor_kwargs, k), Mapping)]):   
             raise ValueError("Cannot pass window to StatefulStim as it already has a window.")
         for k in const_keys:
             nested_set(

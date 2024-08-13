@@ -8,6 +8,7 @@ import psychopy.core
 import psychopy.visual
 
 import intermodulation.core.states as imcs
+import intermodulation.core.stimuli as imcstim
 import intermodulation.stimuli as ims
 
 DOT_DEFAULT = {
@@ -42,7 +43,7 @@ class FixationState(imcs.FlickerStimState):
     def __post_init__(self):
         self.stim_constructor_kwargs = {"fixation": self.dot_kwargs}
         self.frequencies = {"fixation": None}
-        self.stim = ims.StatefulStim(self.win, {"fixation": psychopy.visual.ShapeStim})
+        self.stim = imcstim.StatefulStim(self.window, {"fixation": psychopy.visual.ShapeStim})
         super().__post_init__()
 
 
