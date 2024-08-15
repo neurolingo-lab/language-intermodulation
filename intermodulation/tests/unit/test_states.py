@@ -9,7 +9,8 @@ from scipy.interpolate import interp1d
 import intermodulation.core.states as cstates
 import intermodulation.core.stimuli as cstim
 from intermodulation.utils import (nested_deepkeys, nested_get,
-                                   nested_iteritems, nested_set)
+                                   nested_iteritems, nested_set, get_nearest_f)
+from intermodulation.tests.unit.test_stimuli import window, constructors, constructor_kwargs  # noqa: F401
 
 
 def get_flicker_set():
@@ -51,7 +52,22 @@ def flickerstate(lowfreqs, window, clock, stim, constructor_kwargs):
         stim=stim,
         stim_constructor_kwargs=constructor_kwargs,
         clock=clock,
+        flicker_handler="target_t"
     )
+
+@pytest.fixture
+def flickerstate_frames(lowfreqs, window, clock, stim, constructor_kwargs):
+    return cstates.FlickerStimState(
+        next="next",
+        dur=1.0,
+        frequencies=lowfreqs,
+        window=window,
+        stim=stim,
+        stim_constructor_kwargs=constructor_kwargs,
+        clock=clock,
+        flicker_handler="frame_count"
+    )
+
 
 
 class TestMarkovState:
@@ -169,7 +185,7 @@ class TestFlickerState:
         )
         flickerstate.window.close()
 
-    def test_flicker_compute(self, lowfreqs, flickerstate):
+    def test_flicker_compute_target_t(self, lowfreqs, flickerstate):
         flickerstate.stimon_t = 0.0
         flickerstate._compute_flicker(0.0)
         w1_target = np.arange(
@@ -182,6 +198,30 @@ class TestFlickerState:
         assert np.all(flickerstate.target_switches["words"]["w1"] == w1_target)
         assert np.all(flickerstate.target_switches["words"]["w2"] == w2_target)
         assert flickerstate.target_switches["shapes"]["fixdot"] is None
+
+    def test_flicker_compute_frame_count(self, lowfreqs, flickerstate_frames):
+        flickerstate_frames.frame_num = 0
+        lowfreqs["words"]["w1"] = 3.75
+        # Because the default framerate is 60Hz, the frequencies should correspond to half
+        # cycles of 6 frame and 8 frames
+        halfcycles = []
+        for word in ["w1", "w2"]:
+            nearest = get_nearest_f(lowfreqs["words"][word], flickerstate_frames.framerate)
+            halfcycles.append(int(flickerstate_frames.framerate / (2 * nearest)))
+        
+        flickerstate_frames._compute_flicker_frame_count(0.0)
+        w1_target = np.arange(
+            halfcycles[0] - 1, halfcycles[0] + flickerstate_frames.precompute_flicker_t * flickerstate_frames.framerate, halfcycles[0],
+        )
+        w2_target = np.arange(
+            halfcycles[1] - 1, halfcycles[1] + flickerstate_frames.precompute_flicker_t * flickerstate_frames.framerate, halfcycles[1],
+        )
+        assert hasattr(flickerstate_frames, "switch_frames")
+        assert halfcycles[0] == (flickerstate_frames.switch_frames["words"]["w1"][0] + 1)
+        assert np.all(flickerstate_frames.switch_frames["words"]["w1"] == w1_target)
+        assert np.all(flickerstate_frames.switch_frames["words"]["w2"] == w2_target)
+        assert flickerstate_frames.switch_frames["shapes"]["fixdot"] is None
+
 
     def test_flicker_start(self, flickerstate, constructor_kwargs):
         flickerstate.start_state(0.0)
@@ -212,6 +252,7 @@ class TestFlickerState:
             stim_constructor_kwargs=constructor_kwargs,
             clock=clock,
             framerate=bestframerate,
+            flicker_handler="target_t"
         )
         flickerstate.start_state(0.0)
         predstates = {}
@@ -232,6 +273,7 @@ class TestFlickerState:
                         kstate == predstate(t + 1e-8),
                     ]
                 )
+        window.close()
 
     def test_flicker_end(self, flickerstate, constructor_kwargs):
         flickerstate.start_state(0.0)
@@ -239,11 +281,6 @@ class TestFlickerState:
         assert all(
             [
                 not nested_get(flickerstate.stim.states, k)
-                for k in nested_deepkeys(flickerstate.stim.states)
-            ]
-        )
-        assert len(list(nested_deepkeys(flickerstate.stim.stim))) == 0
-        flickerstate.window.close()
                 for k in nested_deepkeys(flickerstate.stim.states)
             ]
         )
