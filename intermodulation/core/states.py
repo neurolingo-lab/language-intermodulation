@@ -210,7 +210,7 @@ class FlickerStimState(MarkovState):
             nested_set(self.target_mask, k, mask)
 
     def _compute_flicker_frame_count(self, t):
-        if not hasattr(self, "stimon_t") or not hasattr(self, "frame_num"):
+        if not hasattr(self, "frame_num"):
             raise AttributeError("Stimulus must be created before computing flicker.")
         allkeys = list(nested_deepkeys(self.stim.construct))
         fs = {}

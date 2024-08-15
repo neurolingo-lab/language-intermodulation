@@ -9,6 +9,9 @@ from intermodulation.core import ExperimentController
 from intermodulation.core.events import ExperimentLog
 from intermodulation.states import FixationState, InterTrialState, TwoWordState
 from intermodulation.stimuli import TwoWordStim
+import intermodulation.core as core
+
+parent_path = Path(core.__file__).parents[2]
 
 # constants
 RANDOM_SEED = 42  # CHANGE IF NOT DEBUGGING!!
@@ -19,13 +22,13 @@ WINDOW_CONFIG = {
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
-    "color": [0, 0, 0],
+    "color": [-1, -1, -1],
     "colorSpace": "rgb",
     "units": "deg",
     "checkTiming": False,
 }
 FLICKER_RATES = np.array([6., 10.0])  # Hz
-WORDS = pd.read_csv("../words_v1.csv")
+WORDS = pd.read_csv(parent_path / "words_v1.csv")
 ITI_BOUNDS = [0.2, 0.5]  # seconds
 FIXATION_DURATION = 1.0  # seconds
 WORD_DURATION = 2.0  # seconds
@@ -75,6 +78,7 @@ states = {
         frequencies={"words": {"word1": FLICKER_RATES[0], "word2": FLICKER_RATES[1]}},
         clock=clock,
         framerate=framerate,
+        flicker_handler="frame_count"
     ),
 }
 
@@ -85,11 +89,10 @@ def update_words():
     words = WORDS.iloc[states["words"].wordcount]
     states["words"].stim.word1 = words["w1"]
     states["words"].stim.word2 = words["w2"]
-    states["words"].wordcount += 1
-    return
-
-def reset_words():
-    states["words"].wordcount = 0
+    if states["words"].wordcount == len(WORDS):
+        states["words"].wordcount = 0
+    else:
+        states["words"].wordcount += 1
     return
 
 
@@ -103,7 +106,6 @@ controller = ExperimentController(
     N_blocks=N_BLOCKS,
     K_blocktrials=10,
     trial_calls=[update_words],
-    block_calls=[reset_words],
 )
 
 controller.run_experiment()

@@ -32,13 +32,16 @@ LOGGABLES = {
         "flicker_switches",
     ],
 }
-FREQUENCIES = np.arange(2, 60, step=0.2)
-TRIAL_DUR = 3.0
+TRIAL_DUR = 0.2
 
 
 # initialize components
 window = psychopy.visual.Window(**WINDOW_CONFIG)
 framerate = window.getActualFrameRate()
+f_vals = np.linspace(2, 120, 1000)
+nearest = imu.get_nearest_f(f_vals, framerate)
+FREQUENCIES = np.unique(nearest)
+FREQUENCIES = FREQUENCIES[np.isfinite(FREQUENCIES)]
 clock = psychopy.core.Clock()
 logger = imc.ExperimentLog(loggables=LOGGABLES)
 stim = imc.StatefulStim(
@@ -62,8 +65,8 @@ state = imc.FlickerStimState(
     window=window,
     stim=stim,
     clock=clock,
-    flicker_handler="target_t",
-    stim_constructor_kwargs=constructor_kwargs,
+    flicker_handler="frame_count",
+    stim_constructor_kwargs=constructor_kwargs
 )
 
 
