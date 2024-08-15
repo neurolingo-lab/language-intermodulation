@@ -21,6 +21,7 @@ dependencies = [
     "seaborn",
     "jupyter",
     "mne",
+    "ruff"
 ]
 
 [project.optional-dependencies]
