@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import psychopy.visual
 from psychopy.visual.rect import Rect
+from byte_triggers import ParallelPortTrigger
 
 import intermodulation.core as imc
 import intermodulation.utils as imu
@@ -15,10 +16,10 @@ WINDOW_CONFIG = {
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
-    "color": [0, 0, 0],
+    "color": [-1, -1, -1],
     "colorSpace": "rgb",
     "units": "pix",
-    "checkTiming": False,
+    "checkTiming": True,
 }
 LOGGABLES = {
     "per_state": [
@@ -32,16 +33,19 @@ LOGGABLES = {
         "flicker_switches",
     ],
 }
-TRIAL_DUR = 0.2
+TRIAL_DUR = 2.0
 
 
 # initialize components
 window = psychopy.visual.Window(**WINDOW_CONFIG)
 framerate = window.getActualFrameRate()
-f_vals = np.linspace(2, 120, 1000)
-nearest = imu.get_nearest_f(f_vals, framerate)
+print(f"Exact framerate of {framerate} Hz")
+print(f"Rounded to {np.round(framerate).astype(int)} for choosing test freqs")
+f_vals = np.linspace(4, 120, 1000)
+nearest = imu.get_nearest_f(f_vals, np.round(framerate).astype(int))
 FREQUENCIES = np.unique(nearest)
 FREQUENCIES = FREQUENCIES[np.isfinite(FREQUENCIES)]
+print(f"Total of {len(FREQUENCIES)} unique possible frequencies between 4 and 120 Hz")
 clock = psychopy.core.Clock()
 logger = imc.ExperimentLog(loggables=LOGGABLES)
 stim = imc.StatefulStim(
@@ -66,11 +70,12 @@ state = imc.FlickerStimState(
     stim=stim,
     clock=clock,
     flicker_handler="frame_count",
-    stim_constructor_kwargs=constructor_kwargs
+    stim_constructor_kwargs=constructor_kwargs,
 )
 
 
 # Run flickering
+trigger = ParallelPortTrigger("/dev/parport0")
 window.flip()
 clock.reset()
 for i, freq in enumerate(FREQUENCIES):
@@ -81,6 +86,7 @@ for i, freq in enumerate(FREQUENCIES):
     logger.log(i, "duration", 2.0)
     logger.log(i, "flicker_switches", imu.lazy_time(clock))
     logger.log(i, "state_start", imu.lazy_time(clock))
+    trigger.signal(i + 1)
     window.flip()
     logger.log_flip()
     while (fft := window.getFutureFlipTime(clock=clock)) < state.stimon_t + state.dur:
@@ -107,5 +113,5 @@ for trial, logs in logger.continuous.items():
     screenstats["mean_f_old"] = 1 / (2 * screenstats["mean_interval"])
     finalstats = {"target_f": FREQUENCIES[trial], **screenstats, **fscreenstats}
     stats.append(finalstats)
-statsdf = logger.trialsdf.join(pd.DataFrame(stats))
+statsdf = logger.statesdf.join(pd.DataFrame(stats))
 statsdf.to_csv(Path("../data/flicker_test_stats.csv").resolve(), index=False)

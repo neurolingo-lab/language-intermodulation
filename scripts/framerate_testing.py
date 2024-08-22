@@ -4,11 +4,13 @@ import pandas as pd
 import psychopy.visual
 import psychtoolbox as ptb
 from psychopy.visual.rect import Rect
+from byte_triggers import ParallelPortTrigger
 
 import intermodulation.core as imc
 import intermodulation.utils as imu
 
 # constants
+TESTING_TIME = 15
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
     "fullscr": True,
@@ -28,7 +30,10 @@ LOGGABLES = {
         "frame_flips",
     ],
 }
+SAVEPATH = Path(__file__).parents[1] / "data"
+print(SAVEPATH)
 
+trigger = ParallelPortTrigger("/dev/parport0")
 window = psychopy.visual.Window(**WINDOW_CONFIG)
 framerate = window.getActualFrameRate()
 clock = psychopy.core.Clock()
@@ -42,31 +47,51 @@ def ptb_get_secs():
 
 
 # Run and save the pure reported frame flip test
+screenbox = Rect(window, units="pix", size=window.size, fillColor=[1, 1, 1], opacity=1.0)
+window.flip()
+clock.reset()
+window.callOnFlip(ptb_get_secs)
+i = 0
+while clock.getTime() < TESTING_TIME:
+    if i % 2 == 0:
+        screenbox.draw()
+    window.flip()
+    window.callOnFlip(ptb_get_secs)
+    i += 1
+
+pd.Series(flipt).to_csv(SAVEPATH / "framerate_test_fliptimes_ptb.csv", index=False)
+
+
+# Now test using only the intermodulation logger
+logger = imc.ExperimentLog(loggables=LOGGABLES)
+
+trigger.signal(1)
 window.flip()
 clock.reset()
 logger.log(1, "state_number", 1)
-window.callOnFlip(ptb_get_secs)
-while clock.getTime() < 120:
+i = 0  # Frame counter
+while clock.getTime() < TESTING_TIME:
     logger.log(1, "frame_flips", imu.lazy_time(clock))
+    if i % 2 == 0:
+        screenbox.draw()
     window.flip()
     logger.log_flip()
-    window.callOnFlip(ptb_get_secs)
+    i += 1
 
-logger.save(Path("../data/framerate_test.pkl"))
-pd.Series(flipt).to_csv(Path("../data/framerate_test_fliptimes.csv").resolve(), index=False)
+logger.save(SAVEPATH / "framerate_flicker_test_logger.pkl")
 
-# Run and save the frame rate test with the addition of a flickering whole-screen white box
-# which will produce a framerate / 2 Hz flicker
-screenbox = Rect(window, units="pix", size=window.size, fillColor=[1, 1, 1], opacity=1.0)
+
+# Run a combination of the two logging methods
 logger = imc.ExperimentLog(loggables=LOGGABLES)
 flipt = []
 
+trigger.signal(1)
 window.flip()
 clock.reset()
 logger.log(1, "state_number", 1)
 window.callOnFlip(ptb_get_secs)
 i = 0  # Frame counter
-while clock.getTime() < 120:
+while clock.getTime() < TESTING_TIME:
     logger.log(1, "frame_flips", imu.lazy_time(clock))
     if i % 2 == 0:
         screenbox.draw()
@@ -75,7 +100,7 @@ while clock.getTime() < 120:
     window.callOnFlip(ptb_get_secs)
     i += 1
 
-logger.save(Path("../data/framerate_flicker_test.pkl"))
+logger.save(SAVEPATH / "framerate_flicker_test_bothlogs.pkl")
 pd.Series(flipt).to_csv(
-    Path("../data/framerate_flicker_test_fliptimes.csv").resolve(), index=False
+    SAVEPATH / "framerate_flicker_test_fliptimes_bothlogs.csv", index=False
 )

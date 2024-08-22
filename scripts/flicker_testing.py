@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import psychopy.visual
 from psychopy.visual.rect import Rect
+from byte_triggers import ParallelPortTrigger
 
 import intermodulation.core as imc
 import intermodulation.utils as imu
@@ -15,7 +16,7 @@ WINDOW_CONFIG = {
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
-    "color": [0, 0, 0],
+    "color": [-1, -1, -1],
     "colorSpace": "rgb",
     "units": "pix",
     "checkTiming": False,
@@ -32,8 +33,8 @@ LOGGABLES = {
         "flicker_switches",
     ],
 }
-FREQUENCIES = np.arange(2, 60, step=0.2)
-TRIAL_DUR = 3.0
+FREQUENCIES = np.arange(2, 120, step=0.5)
+TRIAL_DUR = 2.
 
 
 # initialize components
@@ -68,6 +69,7 @@ state = imc.FlickerStimState(
 
 
 # Run flickering
+trigger = ParallelPortTrigger("/dev/parport0")
 window.flip()
 clock.reset()
 for i, freq in enumerate(FREQUENCIES):
@@ -78,6 +80,7 @@ for i, freq in enumerate(FREQUENCIES):
     logger.log(i, "duration", 2.0)
     logger.log(i, "flicker_switches", imu.lazy_time(clock))
     logger.log(i, "state_start", imu.lazy_time(clock))
+    trigger.signal(i + 1)
     window.flip()
     logger.log_flip()
     while (fft := window.getFutureFlipTime(clock=clock)) < state.stimon_t + state.dur:
@@ -104,5 +107,5 @@ for trial, logs in logger.continuous.items():
     screenstats["mean_f_old"] = 1 / (2 * screenstats["mean_interval"])
     finalstats = {"target_f": FREQUENCIES[trial], **screenstats, **fscreenstats}
     stats.append(finalstats)
-statsdf = logger.trialsdf.join(pd.DataFrame(stats))
+statsdf = logger.statesdf.join(pd.DataFrame(stats))
 statsdf.to_csv(Path("../data/flicker_test_stats.csv").resolve(), index=False)
