@@ -9,3 +9,4 @@
 *.coverage
 *cov.xml
 uv.lock
+.DS_Store

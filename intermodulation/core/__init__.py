@@ -4,8 +4,7 @@ import psychopy.core
 import psychopy.visual
 
 from intermodulation.core.events import ExperimentLog
-from intermodulation.core.states import FlickerStimState, MarkovState
-from intermodulation.core.stimuli import StatefulStim
+from intermodulation.core.states import MarkovState
 from intermodulation.utils import lazy_time, parse_calls
 
 
@@ -24,7 +23,7 @@ class ExperimentController:
         state_calls: Mapping[Hashable, Sequence[Callable | Tuple[Callable, Mapping]]] = {},
         trial_calls: Sequence[Callable | Tuple[Callable, Mapping]] = [],
         block_calls: Sequence[Callable | Tuple[Callable, Mapping]] = [],
-        ) -> None:
+    ) -> None:
         self.state_num = 0
         self.trial = 0
         self.block_trial = 0
@@ -62,8 +61,7 @@ class ExperimentController:
         state.start_state(flip_t)
         for log in state.log_onflip:  # Queue onflip events for time logging
             self.logger.log(self.state_num, log, lazy_time(self.clock))
-        self.win.flip()  # Flip display
-        flip_t = self.clock.getTime()  # Get true flip time
+        flip_t = self.win.flip()  # Flip display
         self._log_flip(state)  # Process onflip queue and clear
         # Record accurate end time and log start, state, target end
         self.t_next = flip_t + dur
@@ -72,7 +70,7 @@ class ExperimentController:
         self.logger.log(self.state_num, "next_state", self.next)
         self.logger.log(self.state_num, "target_end", self.t_next)
         self._event_calls(state_key, "start")  # Call any start events
-        
+
         # Run updates while we wait on the next state
         while (t := self.win.getFutureFlipTime(clock=self.clock)) < self.t_next:
             state.update_state(t)
@@ -81,7 +79,7 @@ class ExperimentController:
             self.win.flip()
             self._log_flip(state)  # Process onflip queue and clear
             self._event_calls(state_key, "update")  # Call any update events
-        
+
         # End the state
         state.end_state(self.win.getFutureFlipTime(clock=self.clock))
         for log in state.log_onflip:  # onflip events
@@ -119,7 +117,7 @@ class ExperimentController:
             self.logger.log(old_state_num, "trial_end", False)
             self.logger.log(old_state_num, "block_end", False)
         return
-    
+
     def run_experiment(self) -> None:
         if self.state is not None:
             raise ValueError("Experiment already running. How did we get here?")
@@ -143,7 +141,7 @@ class ExperimentController:
                 for f, args, kwargs in parse_calls(self.state_calls[state][event]):
                     f(*args, **kwargs)
         return
-    
+
     def _log_flip(self, state_instance: MarkovState):
         self.logger.log_flip()
         state_instance.clear_logitems()
