@@ -65,15 +65,22 @@ class ExperimentController:
         self._log_flip(state)  # Process onflip queue and clear
         # Record accurate end time and log start, state, target end
         self.t_next = flip_t + dur
-        self.logger.log(self.state_num, "state_start", flip_t)
-        self.logger.log(self.state_num, key="state", value=state_key)
-        self.logger.log(self.state_num, "next_state", self.next)
-        self.logger.log(self.state_num, "target_end", self.t_next)
+        state_logs = {
+            "state_start": flip_t,
+            "state": state_key,
+            "next_state": self.next,
+            "target_end": self.t_next,
+            "trial_number": self.trial,
+        }
+        for key, value in state_logs.items():
+            self.logger.log(self.state_num, key, value)
+
         self._event_calls(state_key, "start")  # Call any start events
 
         # Run updates while we wait on the next state
         while (t := self.win.getFutureFlipTime(clock=self.clock)) < self.t_next:
             state.update_state(t)
+            # print(f"Current time is {t}, we want to end at {self.t_next}")
             for log in state.log_onflip:  # Queue onflip events for time logging
                 self.logger.log(self.state_num, log, lazy_time(self.clock))
             self.win.flip()
@@ -92,7 +99,9 @@ class ExperimentController:
     def inc_counters(self) -> None:
         old_state_num = self.state_num
         self.state_num += 1
-        # breakpoint()
+        # import ipdb; ipdb.set_trace()  # noqa
+        self.logger.log(old_state_num, "block_number", self.block)
+        self.logger.log(old_state_num, "block_trial", self.block_trial)
         if self.current == self.trial_endstate:
             self.logger.log(old_state_num, "trial_end", True)
             self.trial += 1
@@ -133,12 +142,61 @@ class ExperimentController:
             self.inc_counters()
         return
 
+    def add_loggable(
+        self,
+        state: Hashable,
+        event: Literal["start", "update", "end"],
+        key: str,
+        value: str | float | int | bool | None = None,
+        object=None,
+        attribute: str | Sequence | None = None,
+    ) -> None:
+        if value is not None and object is not None:
+            raise ValueError("Cannot specify both value and object.")
+
+        if state not in self.state_calls:
+            self.state_calls[state] = {}
+        if event not in self.state_calls[state]:
+            if event not in ["start", "update", "end"]:
+                raise ValueError("Event must be one of 'start', 'update', or 'end'.")
+            self.state_calls[state][event] = []
+
+        if object is not None:
+            if attribute is None:
+                raise ValueError("If object is specified, attribute must also be specified.")
+
+            self.state_calls[state][event].append((self._log_attrib, (key, object, attribute)))
+        else:
+            self.state_calls[state][event].append((self._log_value, (key, value)))
+        return
+
+    def _log_attrib(self, key, object, attribute):
+        if isinstance(attribute, Sequence) and not isinstance(attribute, str):
+            currlevel = getattr(object, attribute[0])
+            for subkey in attribute[1:]:
+                currlevel = getattr(currlevel, subkey)
+            self.logger.log(self.state_num, key, currlevel)
+        else:
+            self.logger.log(self.state_num, key, getattr(object, attribute))
+        return
+
+    def _log_value(self, key, value):
+        self.logger.log(self.state_num, key, value)
+        return
+
     def _event_calls(self, state: Hashable, event: Literal["start", "update", "end"]):
         if state in self.state_calls and event in self.state_calls[state]:
             if isinstance(self.state_calls[state][event], Callable):
                 self.state_calls[state][event]()
             else:
                 for f, args, kwargs in parse_calls(self.state_calls[state][event]):
+                    f(*args, **kwargs)
+
+        if "all" in self.state_calls and event in self.state_calls["all"]:
+            if isinstance(self.state_calls["all"][event], Callable):
+                self.state_calls["all"][event]()
+            else:
+                for f, args, kwargs in parse_calls(self.state_calls["all"][event]):
                     f(*args, **kwargs)
         return
 
