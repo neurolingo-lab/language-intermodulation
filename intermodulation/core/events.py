@@ -1,11 +1,10 @@
 import asyncio
 import pickle
 from collections import defaultdict
-from collections.abc import Collection, Hashable, Mapping
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -15,28 +14,19 @@ LOGGABLES = {
         "state_number",
         "state",
         "next_state",
-        "target_end",
         "state_start",
+        "target_end",
         "state_end",
         "trial_number",
         "block_number",
         "block_trial",
-        "fixation_on",
-        "stim_on",
-        "iti_start",
         "trial_end",
         "block_end",
-        "word1",
-        "word2",
-        "word1_freq",
-        "word2_freq",
         "condition",
-        "randomized",
-        "trial_cond",      
     ],
     "continuous_per_state": [
-        ("words", "word1"),
-        ("words", "word2"),
+        "stim1",
+        "stim2",
     ],
 }
 
@@ -81,11 +71,36 @@ class ExperimentLog:
     def save(self, fn: str | Path):
         if isinstance(fn, Path):
             fn = fn.resolve()
-        state_nums = list(self.states.keys())
-        statesdf = pd.DataFrame.from_records([self.states[tn] for tn in sorted(state_nums)])
+        statesdf = self.statesdf()
+        contdf = self.contdf()
         with open(fn, "wb") as fw:
-            pickle.dump({"continuous": dict(self.continuous), "states": statesdf}, fw)
-        self.statesdf = statesdf
+            pickle.dump({"continuous": contdf, "states": statesdf}, fw)
+
+    def statesdf(self):
+        state_nums = list(self.states.keys())
+        statesdf = pd.DataFrame.from_records([self.states[sn] for sn in sorted(state_nums)])
+        return statesdf.convert_dtypes()
+
+    def contdf(self):
+        state_nums = list(self.continuous.keys())
+        maxkeylen = max(map(len, [k for sn in state_nums for k in self.continuous[sn].keys()]))
+        data = {
+            "state_number": np.empty(0, dtype=int),
+            "value": np.empty(0),
+            **{f"key{n}": [] for n in range(maxkeylen)},
+        }
+        for sn in state_nums:
+            for key, values in self.continuous[sn].items():
+                data["state_number"] = np.append(data["state_number"], np.ones(len(values)) * sn)
+                data["value"] = np.append(data["value"], values)
+                if isinstance(key, str):
+                    data["key0"] = np.append(data["key0"], np.ones(len(values), dtype=int) * key)
+                else:
+                    for i, subk in enumerate(key):
+                        data[f"key{i}"].extend([subk] * len(values))
+
+        contdf = pd.DataFrame.from_dict(data)
+        return contdf.convert_dtypes()
 
     async def _lazylog(self, state_number, key, value):
         if asyncio.iscoroutine(value):

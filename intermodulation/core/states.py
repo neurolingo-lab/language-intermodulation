@@ -2,15 +2,22 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from numbers import Number
-from typing import Tuple, Literal
+from typing import Literal, Tuple
 
 import numpy as np
 import psychopy.core
 import psychopy.visual
+from attridict import AttriDict
 
 import intermodulation.core.stimuli as stimuli
 from intermodulation.core import _types
-from intermodulation.utils import get_nearest_f, nested_deepkeys, nested_get, nested_set, parse_calls
+from intermodulation.utils import (
+    get_nearest_f,
+    nested_deepkeys,
+    nested_get,
+    nested_set,
+    parse_calls,
+)
 
 
 @dataclass
@@ -149,6 +156,9 @@ class FlickerStimState(MarkovState):
     frequencies: Mapping[Hashable, Number | Mapping] = field(kw_only=True)
     window: psychopy.visual.Window = field(kw_only=True)
     stim: stimuli.StatefulStim = field(kw_only=True)
+    # TODO: Remove the stim constructor kwargs and assume that the stimulus object handles
+    # the constructor instantiation. Modifying stim parameters on the fly can be done by accessing
+    # the stimulus object directly in that case.
     stim_constructor_kwargs: Mapping = field(default_factory=dict)
     clock: psychopy.core.Clock = field(kw_only=True)
     framerate: float = 60.0
@@ -156,6 +166,7 @@ class FlickerStimState(MarkovState):
     precompute_flicker_t: float = 100.0
 
     def __post_init__(self):
+        self.frequencies = AttriDict(self.frequencies)
         self.start_calls.append((self._create_stim, (self.stim_constructor_kwargs,)))
         if self.flicker_handler == "target_t":
             self.start_calls.append((self._compute_flicker,))
@@ -176,7 +187,7 @@ class FlickerStimState(MarkovState):
         self.stimon_t = t
         if self.flicker_handler == "frame_count":
             self.frame_num = 0
-        self.log_onflip
+        self.log_onflip = []
 
     def _compute_flicker(self, t):
         if not hasattr(self, "stimon_t"):
@@ -235,7 +246,7 @@ class FlickerStimState(MarkovState):
                             frames_per_halfcycle - 1,
                             frames_per_halfcycle + self.precompute_flicker_t * self.framerate,
                             frames_per_halfcycle,
-                            dtype=int
+                            dtype=int,
                         ),
                     )
             except KeyError:

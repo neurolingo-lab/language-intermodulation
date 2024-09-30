@@ -2,14 +2,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import psychopy.core
+import psychopy.logging
 import psychopy.visual
+from psyquartz import Clock
 
+import intermodulation.core as core
+import intermodulation.freqtag_spec as spec
 from intermodulation.core import ExperimentController
 from intermodulation.core.events import ExperimentLog
-from intermodulation.states import FixationState, InterTrialState, TwoWordState
+from intermodulation.states import TwoWordState
 from intermodulation.stimuli import TwoWordStim
-import intermodulation.core as core
 
 parent_path = Path(core.__file__).parents[2]
 
@@ -18,7 +20,7 @@ RANDOM_SEED = 42  # CHANGE IF NOT DEBUGGING!!
 
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
-    "fullscr": True,
+    "fullscr": False,
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
@@ -27,11 +29,11 @@ WINDOW_CONFIG = {
     "units": "deg",
     "checkTiming": False,
 }
-FLICKER_RATES = np.array([6., 10.0])  # Hz
+FLICKER_RATES = np.array([6.25, 25])  # Hz
 WORDS = pd.read_csv(parent_path / "words_v1.csv")
 ITI_BOUNDS = [0.2, 0.5]  # seconds
 FIXATION_DURATION = 1.0  # seconds
-WORD_DURATION = 2.0  # seconds
+WORD_DURATION = 0.5  # seconds
 N_BLOCKS = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 WORD_SEP: int = 5  # word separation in degrees
 TEXT_CONFIG = {
@@ -55,17 +57,20 @@ DOT_CONFIG = {
     "interpolate": True,
 }
 
+clock = Clock()
+psychopy.logging.setDefaultClock(clock)
 
 rng = np.random.default_rng(RANDOM_SEED)
+wordsdf = spec.assign_frequencies_to_words(WORDS, *FLICKER_RATES, rng)
 window = psychopy.visual.Window(**WINDOW_CONFIG)
 framerate = np.round(window.getActualFrameRate())
-clock = psychopy.core.Clock()
 logger = ExperimentLog()
 states = {
     "words": TwoWordState(
         next="words",
         dur=WORD_DURATION,
         window=window,
+        word_list=WORDS,
         stim=TwoWordStim(
             win=window,
             word1="experiment",
@@ -78,23 +83,14 @@ states = {
         frequencies={"words": {"word1": FLICKER_RATES[0], "word2": FLICKER_RATES[1]}},
         clock=clock,
         framerate=framerate,
-        flicker_handler="frame_count"
+        flicker_handler="frame_count",
     ),
 }
-
-states["words"].wordcount = 0
-
-
-def update_words():
-    words = WORDS.iloc[states["words"].wordcount]
-    states["words"].stim.word1 = words["w1"]
-    states["words"].stim.word2 = words["w2"]
-    if states["words"].wordcount == len(WORDS):
-        states["words"].wordcount = 0
-    else:
-        states["words"].wordcount += 1
-    return
-
+state_calls = {  # What to call at different points (start, update, end) of each state
+    "words": {
+        "end": states["words"].update_words,
+    }
+}
 
 controller = ExperimentController(
     states=states,
@@ -105,7 +101,10 @@ controller = ExperimentController(
     trial_endstate="words",
     N_blocks=N_BLOCKS,
     K_blocktrials=10,
-    trial_calls=[update_words],
+    state_calls=state_calls,
+)
+controller.add_loggable(
+    "words", "start", "condition", object=states["words"].stim, attribute="word1"
 )
 
 controller.run_experiment()
