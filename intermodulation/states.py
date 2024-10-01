@@ -73,7 +73,7 @@ class OneWordState(imcs.FlickerStimState):
 
         # Ignore the initial passed words and use the list
         words = self.word_list.iloc[self.word_idx]
-        self.phrase_cond = words["condition"]
+        self.word_cond = words["condition"]
         self.stim.word1 = words["word"]
         self.frequencies["words"]["word"] = words["word_freq"]
 
@@ -91,7 +91,7 @@ class OneWordState(imcs.FlickerStimState):
             self.pair_idx += 1
 
         words = self.word_list.iloc[self.pair_idx]
-        self.phrase_cond = words["condition"]
+        self.word_cond = words["condition"]
         self.stim.word1 = words["w1"]
 
         self.frequencies["words"]["word1"] = words["w1_freq"]

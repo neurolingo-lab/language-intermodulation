@@ -1,5 +1,6 @@
 from typing import Callable, Hashable, Literal, Mapping, Sequence, Tuple
 
+import numpy as np
 import psychopy.core
 import psychopy.visual
 
@@ -43,6 +44,9 @@ class ExperimentController:
         self.trial_calls = trial_calls
         self.block_calls = block_calls
         self.state = None
+        self._paused = False
+        if "pause" not in self.states:
+            self._add_pause()
 
     def run_state(self, state: Hashable | None = None) -> None:
         # If the user manually ran a state, use that state otherwise default to current
@@ -54,6 +58,8 @@ class ExperimentController:
         else:
             state_key = state
             state = self.states[state_key]
+            self.state = state
+            self.current = state_key
         self.next, dur = state.get_next()
 
         # Start the state once we have the next one and duration sorted
@@ -86,6 +92,8 @@ class ExperimentController:
             self.win.flip()
             self._log_flip(state)  # Process onflip queue and clear
             self._event_calls(state_key, "update")  # Call any update events
+            if self._check_pause():
+                break
 
         # End the state
         state.end_state(self.win.getFutureFlipTime(clock=self.clock))
@@ -106,20 +114,14 @@ class ExperimentController:
             self.logger.log(old_state_num, "trial_end", True)
             self.trial += 1
             self.block_trial += 1
-            for call in self.trial_calls:
-                if isinstance(call, tuple):
-                    call[0](**call[1])
-                else:
-                    call()
+            for f, args, kwargs in parse_calls(self.trial_calls):
+                f(*args, **kwargs)
             if self.block_trial == self.K_trials:
                 self.logger.log(old_state_num, "block_end", True)
                 self.block += 1
                 self.block_trial = 0
-                for call in self.block_calls:
-                    if isinstance(call, tuple):
-                        call[0](**call[1])
-                    else:
-                        call()
+                for f, args, kwargs in parse_calls(self.block_calls):
+                    f(*args, **kwargs)
                 if self.block == self.N_blocks:
                     self.next = None
         else:
@@ -140,6 +142,10 @@ class ExperimentController:
             self.state = self.states[self.current]
             self.run_state(self.current)
             self.inc_counters()
+        return
+
+    def toggle_pause(self):
+        self._paused = not self._paused
         return
 
     def add_loggable(
@@ -169,6 +175,26 @@ class ExperimentController:
         else:
             self.state_calls[state][event].append((self._log_value, (key, value)))
         return
+
+    def _add_pause(self):
+        self.states["pause"] = MarkovState(
+            next="pause",
+            dur=np.inf,
+        )
+        return
+
+    def _check_pause(self):
+        """Return True if we should break out of the current state, either to pause or resume."""
+        if self.state is self.states["pause"]:
+            if not self._paused:  # We are resuming
+                self.next = self._resume
+                del self._resume
+            return not self._paused
+        else:
+            if self._paused:  # We are pausing, store the planned next state for resume
+                self._resume = self.next
+                self.next = "pause"
+            return self._paused
 
     def _log_attrib(self, key, object, attribute):
         if isinstance(attribute, Sequence) and not isinstance(attribute, str):
