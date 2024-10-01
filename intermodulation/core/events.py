@@ -79,7 +79,7 @@ class ExperimentLog:
     def statesdf(self):
         state_nums = list(self.states.keys())
         statesdf = pd.DataFrame.from_records([self.states[sn] for sn in sorted(state_nums)])
-        return statesdf.convert_dtypes()
+        return statesdf.convert_dtypes().set_index("state_number")
 
     def contdf(self):
         state_nums = list(self.continuous.keys())

@@ -1,10 +1,17 @@
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import psychopy.core
+import psychopy.event
 import psychopy.visual
 from psyquartz import Clock
+
+try:
+    from byte_triggers import ParallelPortTrigger
+except ImportError:
+    pass
 
 import intermodulation.core as core
 import intermodulation.freqtag_spec as spec
@@ -18,6 +25,8 @@ parent_path = Path(core.__file__).parents[2]
 RANDOM_SEED = 42  # CHANGE IF NOT DEBUGGING!! SET TO NONE FOR RANDOM SEED
 
 # EXPERIMENT PARAMETERS
+LOGPATH = parent_path / "logs"
+PARALLEL_PORT = "/dev/parport0"  # Set to None if no parallel port
 FLICKER_RATES = np.array([6.25, 25])  # Hz
 WORDS = pd.read_csv(parent_path / "words_v1.csv").iloc[:50]
 FIXATION_DURATION = 0.2  # seconds
@@ -75,6 +84,7 @@ psychopy.logging.setDefaultClock(clock)
 rng = np.random.default_rng(RANDOM_SEED)
 # propixx = Monitor(name="propixx", width=DISPLAY_WIDTH, distance=DISPLAY_DISTANCE)
 # WINDOW_CONFIG["monitor"] = "propixx"
+
 window = psychopy.visual.Window(**WINDOW_CONFIG)
 framerate = np.round(window.getActualFrameRate())
 if framerate is None:
@@ -135,6 +145,10 @@ states = {
     ),
 }
 
+try:
+    trigger = ParallelPortTrigger(PARALLEL_PORT, delay=2)
+except RuntimeError:
+    trigger = None
 controller = core.ExperimentController(
     states=states,
     window=window,
@@ -157,6 +171,32 @@ controller.state_calls = {
     },
 }
 
-spec.add_logging_to_controller(controller, states, "words", "word", "query")
+spec.add_logging_to_controller(controller, states, "query", "words")
+spec.add_triggers_to_controller(
+    controller, trigger, FLICKER_RATES, states, "intertrial", "fixation", "query"
+)
+
+
+# Set up CTRL + C handling for graceful exit with logs
+def save_logs_quit():
+    logger.save("final_experiment.pkl")
+    window.close()
+    return
+
+
+psychopy.event.globalKeys.add(
+    key="q",
+    modifiers=["ctrl"],
+    func=save_logs_quit,
+)
+psychopy.event.globalKeys.add(
+    key="p",
+    modifiers=["ctrl"],
+    func=controller.toggle_pause,
+)
 controller.state_calls["all"] = {"end": []}
 controller.run_experiment()
+
+# Save logs
+date = datetime.now().isoformat(timespec="minutes")
+logger.save(LOGPATH / f"{date}_experiment.pkl")
