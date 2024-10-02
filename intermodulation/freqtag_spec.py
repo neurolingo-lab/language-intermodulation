@@ -95,9 +95,9 @@ TRIGGERS = SimpleNamespace(
 
 def assign_frequencies_to_words(wordsdf, freq1: float, freq2: float, rng: np.random.Generator):
     """
-    Counterbalanced assignment of one of two frequencies to each word in a DataFrame. Returns
-    a new DataFrame with the columns "w1_freq" and "w2_freq" added. Each pair will have one of
-    each frequency.
+    Counterbalanced assignment of one of two frequencies to each word in a DataFrame, within
+    condition. Returns a new DataFrame with the columns "w1_freq" and "w2_freq" added. Each pair
+    will have one of each frequency.
 
     Parameters
     ----------
@@ -111,21 +111,27 @@ def assign_frequencies_to_words(wordsdf, freq1: float, freq2: float, rng: np.ran
         RNG object to use
     """
     outdf = wordsdf.copy()
-    mask = np.zeros(len(wordsdf), dtype=bool)
-    f_choices = rng.choice(np.arange(len(wordsdf)), size=len(wordsdf) // 2, replace=False)
-    mask[f_choices] = True
-    w1_f = np.where(mask, freq1, freq2)
-    w2_f = np.where(mask, freq2, freq1)
+    outdf["w1_freq"] = np.nan
+    if "w2" in wordsdf.columns:
+        outdf["w2_freq"] = np.nan
+    for condition in wordsdf["condition"].unique():
+        condidx = wordsdf.query("condition == @condition").index
+        mask = np.zeros(len(condidx), dtype=bool)
+        f1_choices = rng.choice(np.arange(len(condidx)), size=len(condidx) // 2, replace=False)
+        mask[f1_choices] = True
+        w1_f = np.where(mask, freq1, freq2)
+        outdf.loc[condidx, "w1_freq"] = w1_f
+        if "w2" in wordsdf.columns:
+            w2_f = np.where(mask, freq2, freq1)
+            outdf.loc[condidx, "w2_freq"] = w2_f
 
-    outdf["w1_freq"] = w1_f
-    outdf["w2_freq"] = w2_f
     return outdf
 
 
 def add_logging_to_controller(
     controller: core.ExperimentController,
     states: dict,
-    query: Hashable,
+    query: Hashable | None = None,
     twoword: Hashable | None = None,
     oneword: Hashable | None = None,
 ):
@@ -157,6 +163,9 @@ def add_logging_to_controller(
         controller.add_loggable(
             twoword, "start", "condition", object=states[twoword], attribute="phrase_cond"
         )
+        controller.add_loggable(
+            query, "start", "word1", object=states[query], attribute="test_word"
+        )
     elif oneword is not None:
         controller.add_loggable(
             oneword, "start", "word1", object=states[oneword].stim, attribute="word1"
@@ -171,7 +180,7 @@ def add_logging_to_controller(
         controller.add_loggable(
             oneword, "start", "condition", object=states[oneword], attribute="word_cond"
         )
-    controller.add_loggable(query, "start", "word1", object=states[query], attribute="test_word")
+    return
 
 
 def add_triggers_to_controller(
@@ -181,7 +190,7 @@ def add_triggers_to_controller(
     states: dict,
     iti: Hashable,
     fixation: Hashable,
-    query: Hashable,
+    query: Hashable | None = None,
     twoword: Hashable | None = None,
     oneword: Hashable | None = None,
 ):
@@ -193,14 +202,18 @@ def add_triggers_to_controller(
         raise ValueError("At least one of twoword or oneword must be provided.")
     elif twoword is not None and oneword is not None:
         raise ValueError("Only one of twoword or oneword can be provided.")
-    wordstate = twoword if twoword is not None else oneword
 
     # Make sure we have exactly two frequencies
     if len(freqs) != 2:
         raise ValueError("freqs must be a sequence of two frequencies.")
     # Make sure every passed state is in the states dictionary
+    wordstate = twoword if twoword is not None else oneword
+    stateslist = [iti, fixation, "pause", wordstate]
+    if query is not None:
+        stateslist.append(query)
+
     missing = []
-    for state in [iti, fixation, query, wordstate]:
+    for state in stateslist:
         if state not in states:
             missing.append(state)
     if len(missing) > 0:
@@ -210,7 +223,7 @@ def add_triggers_to_controller(
         return
 
     # Initialize the call lists for each state if they don't exist, and add the state end triggers
-    for state in [iti, fixation, query, wordstate, "pause"]:
+    for state in stateslist:
         if state not in controller.state_calls:
             controller.state_calls[state] = {}
         if "end" not in controller.state_calls[state]:
