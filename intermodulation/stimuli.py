@@ -114,7 +114,6 @@ class TwoWordStim(ics.StatefulStim):
 class OneWordStim(ics.StatefulStim):
     win: psychopy.visual.Window
     word1: str
-    separation: float
     text_config: Mapping = field(default_factory=TEXT_CONFIG.copy)
 
     def __post_init__(self):
@@ -123,9 +122,8 @@ class OneWordStim(ics.StatefulStim):
             "words": {
                 "word1": {
                     "text": self.word1,
-                    "pos": (-self.separation / 2, 0),
-                    "anchorHoriz": "right",
-                    "alignText": "right",
+                    "anchorHoriz": "center",
+                    "alignText": "center",
                     **self.text_config,
                 },
             },

@@ -74,8 +74,8 @@ class OneWordState(imcs.FlickerStimState):
         # Ignore the initial passed words and use the list
         words = self.word_list.iloc[self.word_idx]
         self.word_cond = words["condition"]
-        self.stim.word1 = words["word"]
-        self.frequencies["words"]["word"] = words["word_freq"]
+        self.stim.word1 = words["w1"]
+        self.frequencies["words"]["word1"] = words["w1_freq"]
 
         self.stim_constructor_kwargs = {}
         super().__post_init__()
@@ -83,14 +83,14 @@ class OneWordState(imcs.FlickerStimState):
     def update_word(self, query_state=None):
         if query_state is not None and isinstance(query_state, QueryState):
             query_state.word_list = self.word_list
-            query_state.stim_idx = int(self.pair_idx)
+            query_state.stim_idx = int(self.word_idx)
 
-        if self.pair_idx == (len(self.word_list) - 1):
-            self.pair_idx = 0
+        if self.word_idx == (len(self.word_list) - 1):
+            self.word_idx = 0
         else:
-            self.pair_idx += 1
+            self.word_idx += 1
 
-        words = self.word_list.iloc[self.pair_idx]
+        words = self.word_list.iloc[self.word_idx]
         self.word_cond = words["condition"]
         self.stim.word1 = words["w1"]
 

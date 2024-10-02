@@ -45,6 +45,7 @@ class ExperimentController:
         self.block_calls = block_calls
         self.state = None
         self._paused = False
+        self._quitting = False
         if "pause" not in self.states:
             self._add_pause()
 
@@ -94,6 +95,8 @@ class ExperimentController:
             self._event_calls(state_key, "update")  # Call any update events
             if self._check_pause():
                 break
+            if self._quitting:
+                return
 
         # End the state
         state.end_state(self.win.getFutureFlipTime(clock=self.clock))
@@ -141,11 +144,17 @@ class ExperimentController:
             self.current = self.next
             self.state = self.states[self.current]
             self.run_state(self.current)
+            if self._quitting:
+                break
             self.inc_counters()
         return
 
     def toggle_pause(self):
         self._paused = not self._paused
+        return
+
+    def quit(self):
+        self._quitting = True
         return
 
     def add_loggable(
