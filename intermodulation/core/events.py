@@ -114,5 +114,8 @@ class ExperimentLog:
 
     async def _process_flip_logs(self):
         for log in self.log_on_flip:
-            await log
+            try:
+                await log
+            except Exception as e:
+                print(f"Could not log {log}: {e}")
         return
