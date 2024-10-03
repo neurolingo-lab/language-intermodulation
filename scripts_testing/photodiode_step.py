@@ -15,8 +15,8 @@ TIME_PER_PIX = 1.0  # seconds
 # Detailed display parameters
 DISPLAY_RES = (1280, 720)
 DISPLAY_DISTANCE = 120  # cm
-DISPLAY_WIDTH = 55  # cm
-DISPLAY_HEIGHT = 30.5
+DISPLAY_WIDTH = 55 * (1280 / 1920)  # cm
+DISPLAY_HEIGHT = 30.5 * (720 / 1080)  # cm
 FOVEAL_ANGLE = 5.0  # degrees
 
 WINDOW_CONFIG = {
@@ -47,7 +47,9 @@ rect = psychopy.visual.rect.Rect(
 rect.draw()
 window.flip()
 
-input("Press enter once photodiode has been aligned with the white square.")
+start_t = clock.getTime()
+while clock.getTime() < start_t + 30:
+    pass
 
 for size in REPORT_PIX_SIZES:
     for color in colorsteps:
