@@ -49,13 +49,13 @@ ITI_BOUNDS = [0.05, 0.2]  # seconds
 QUERY_P = 0.1  # probability of a query appearing after stimulus
 N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
-WORD_SEP: int = 2.5  # word separation in degrees
+WORD_SEP: int = 5  # word separation in degrees
 
 # Detailed display parameters
 DISPLAY_RES = (1280, 720)
 DISPLAY_DISTANCE = 120  # cm
-DISPLAY_WIDTH = 55  # cm
-DISPLAY_HEIGHT = 30.5
+DISPLAY_WIDTH = 36.666666  # cm
+DISPLAY_HEIGHT = 20.333333333333333333  # cm
 FOVEAL_ANGLE = 5.0  # degrees
 
 REPORT_PIX = True
@@ -73,8 +73,8 @@ WINDOW_CONFIG = {
     "checkTiming": False,
 }
 TEXT_CONFIG = {
-    "font": "Arial",
-    "height": 1.5,
+    "font": "Ubuntu mono",
+    "height": 0.95,
     "wrapWidth": None,
     "ori": 0.0,
     "color": "white",
