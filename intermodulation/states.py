@@ -18,6 +18,12 @@ DOT_DEFAULT = {
     "fillColor": "white",
     "interpolate": True,
 }
+REPORT_PIX_VALS = {
+    (False, False): (-1, -1, -1),
+    (True, False): (-(1 / 3), -(1 / 3), -(1 / 3)),
+    (False, True): (1 / 3, 1 / 3, 1 / 3),
+    (True, True): (1, 1, 1),
+}
 
 
 @dataclass
@@ -37,7 +43,10 @@ class TwoWordState(imcs.FlickerStimState):
         self.frequencies["words"]["word2"] = words["w2_freq"]
 
         self.stim_constructor_kwargs = {}
+
         super().__post_init__()
+        if self.stim.reporting_pix:
+            self.update_calls.append(self._set_pixreport)
         # Debug calls
         # self.start_calls.append((lambda t: print(self.pair_idx),))
         # self.end_calls.append((lambda t: print(self.pair_idx),))
@@ -61,6 +70,10 @@ class TwoWordState(imcs.FlickerStimState):
         self.frequencies["words"]["word2"] = words["w2_freq"]
 
         return
+
+    def _set_pixreport(self, *args, **kwargs):
+        word_states = (self.stim.states["words"]["word1"], self.stim.states["words"]["word2"])
+        self.stim.stim["reporting_pix"].fillColor = REPORT_PIX_VALS[word_states]
 
 
 @dataclass

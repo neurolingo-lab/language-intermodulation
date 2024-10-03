@@ -35,7 +35,7 @@ rng = np.random.default_rng(RANDOM_SEED)
 # EXPERIMENT PARAMETERS
 LOGPATH = parent_path / "logs"
 PARALLEL_PORT = "/dev/parport0"  # Set to None if no parallel port
-FLICKER_RATES = np.array([15, 17.14286])  # Hz
+FLICKER_RATES = np.array([0.5, 0.25])  # Hz
 TWOWORDS = pd.read_csv(parent_path / "two_word_stimuli.csv", index_col=0).sample(
     frac=1, random_state=rng
 )
@@ -52,14 +52,18 @@ N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
 WORD_SEP: int = 2.5  # word separation in degrees
 
 # Detailed display parameters
+DISPLAY_RES = (1280, 720)
 DISPLAY_DISTANCE = 120  # cm
 DISPLAY_WIDTH = 55  # cm
 DISPLAY_HEIGHT = 30.5
 FOVEAL_ANGLE = 5.0  # degrees
 
+REPORT_PIX = True
+REPORT_PIX_SIZE = 50
+
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
-    "fullscr": True,
+    "fullscr": False,
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
@@ -98,17 +102,22 @@ psychopy.logging.setDefaultClock(clock)
 LOGPATH.mkdir(exist_ok=True)
 
 # Choose which monitor to use for the experiment (uncomment if not testing)
-# desktop = psychopy.monitors.Monitor(name="desktop", width=80.722, distance=60)
-propixx = psychopy.monitors.Monitor(name="propixx", width=DISPLAY_WIDTH, distance=DISPLAY_DISTANCE)
-propixx.setSizePix((1280, 720))
-propixx.save()
-WINDOW_CONFIG["monitor"] = "propixx"
+desktop = psychopy.monitors.Monitor(name="desktop", width=80.722, distance=60)
+desktop.setSizePix((3440, 1440))
+desktop.save()
+WINDOW_CONFIG["monitor"] = "desktop"
+
+# propixx = psychopy.monitors.Monitor(name="propixx", width=DISPLAY_WIDTH, distance=DISPLAY_DISTANCE)
+# propixx.setSizePix(DISPLAY_RES)
+# propixx.save()
+# WINDOW_CONFIG["monitor"] = "propixx"
 
 
 window = psychopy.visual.Window(**WINDOW_CONFIG)
-framerate = np.round(window.getActualFrameRate())
+framerate = window.getActualFrameRate()
 if framerate is None:
     raise ValueError("Could not determine window framerate")
+framerate = np.round(framerate)
 
 try:
     trigger = ParallelPortTrigger(PARALLEL_PORT, delay=2)
@@ -124,9 +133,9 @@ except RuntimeError:
     trigger = DummyTrigger()
 
 ## FOR DEBUGGING ONLY!!! ##
-# framerate = (
-#     100  # Change to whatever you *know* your monitor to refresh at. Avoids measurement errors.
-# )
+framerate = (
+    100  # Change to whatever you *know* your monitor to refresh at. Avoids measurement errors.
+)
 ###########################
 
 logger = ExperimentLog(loggables=spec.LOGGABLES)
@@ -167,6 +176,8 @@ states_2word = {
             word2="start",
             separation=WORD_SEP,
             fixation_dot=True,
+            reporting_pix=REPORT_PIX,
+            reporting_pix_size=REPORT_PIX_SIZE,
             text_config=TEXT_CONFIG,
             dot_config=DOT_CONFIG,
         ),
@@ -218,7 +229,6 @@ def save_logs_quit():
     logger.save("final_experiment.pkl")
     controller.quit()
     window.close()
-    exit()
     return
 
 
