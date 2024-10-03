@@ -138,6 +138,8 @@ class TwoWordStim(ics.StatefulStim):
 class OneWordStim(ics.StatefulStim):
     win: psychopy.visual.Window
     word1: str
+    reporting_pix: bool = False
+    reporting_pix_size: int = 4
     text_config: Mapping = field(default_factory=TEXT_CONFIG.copy)
 
     def __post_init__(self):
@@ -157,6 +159,25 @@ class OneWordStim(ics.StatefulStim):
                 "word1": psychopy.visual.TextStim,
             },
         }
+        if self.reporting_pix:
+            if self.reporting_pix_size % 2 != 0:
+                raise ValueError("Reporting pixel size must be an even number.")
+            upperR_corner = mut.convertToPix(
+                pos=np.array((1.0, 1.0)), vertices=np.array((0.0, 0.0)), units="norm", win=self.win
+            )
+            pix_pos = (
+                upperR_corner[0] - self.reporting_pix_size // 2,
+                upperR_corner[1] - self.reporting_pix_size // 2,
+            )
+            self.stim_constructor_kwargs["reporting_pix"] = {
+                "pos": pix_pos,
+                "height": self.reporting_pix_size,
+                "width": self.reporting_pix_size,
+                "units": "pix",
+                "fillColor": (1, 1, 1),
+                "lineWidth": 0,
+            }
+            constructors["reporting_pix"] = psychopy.visual.rect.Rect
 
         super().__init__(self.win, constructors)
 

@@ -35,7 +35,7 @@ rng = np.random.default_rng(RANDOM_SEED)
 # EXPERIMENT PARAMETERS
 LOGPATH = parent_path / "logs"
 PARALLEL_PORT = "/dev/parport0"  # Set to None if no parallel port
-FLICKER_RATES = np.array([0.5, 0.25])  # Hz
+FLICKER_RATES = np.array([15, 17.14286])  # Hz
 TWOWORDS = pd.read_csv(parent_path / "two_word_stimuli.csv", index_col=0).sample(
     frac=1, random_state=rng
 )
@@ -45,7 +45,7 @@ ONEWORDS = pd.read_csv(parent_path / "one_word_stimuli.csv", index_col=0).sample
 FIXATION_DURATION = 0.5  # seconds
 WORD_DURATION = 2.0  # seconds
 QUERY_DURATION = 2.0  # seconds
-ITI_BOUNDS = [0.05, 0.2]  # seconds
+ITI_BOUNDS = [0.5, 1.5]  # seconds
 QUERY_P = 0.1  # probability of a query appearing after stimulus
 N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
@@ -59,11 +59,11 @@ DISPLAY_HEIGHT = 20.333333333333333333  # cm
 FOVEAL_ANGLE = 5.0  # degrees
 
 REPORT_PIX = True
-REPORT_PIX_SIZE = 50
+REPORT_PIX_SIZE = 36
 
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
-    "fullscr": False,
+    "fullscr": True,
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
@@ -73,8 +73,8 @@ WINDOW_CONFIG = {
     "checkTiming": False,
 }
 TEXT_CONFIG = {
-    "font": "Ubuntu mono",
-    "height": 0.95,
+    "font": "Cousine Nerd Font Mono",
+    "height": 0.9,
     "wrapWidth": None,
     "ori": 0.0,
     "color": "white",
@@ -92,6 +92,13 @@ DOT_CONFIG = {
     "fillColor": "white",
     "interpolate": True,
 }
+
+#############################################################
+#         DEBUGGING PARAMETER CHANGES HERE, IF ANY!         #
+#############################################################
+# FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
+# WORD_DURATION = 2.0  # seconds
+#############################################################
 
 # Use the psyquartz clock for platform stability
 clock = Clock()
@@ -118,6 +125,7 @@ framerate = window.getActualFrameRate()
 if framerate is None:
     raise ValueError("Could not determine window framerate")
 framerate = np.round(framerate)
+# framerate = 100
 
 try:
     trigger = ParallelPortTrigger(PARALLEL_PORT, delay=2)
@@ -132,11 +140,10 @@ except RuntimeError:
 
     trigger = DummyTrigger()
 
-## FOR DEBUGGING ONLY!!! ##
-framerate = (
-    100  # Change to whatever you *know* your monitor to refresh at. Avoids measurement errors.
-)
-###########################
+
+########################################################
+#                     TASK 1 BELOW                     #
+########################################################
 
 logger = ExperimentLog(loggables=spec.LOGGABLES)
 
@@ -250,24 +257,41 @@ date = datetime.now().isoformat(timespec="minutes")
 logger.save(LOGPATH / f"{date}_2word_experiment.pkl")
 
 ########################################################
-#         TASK 1 ABOVE THIS LINE, TASK 2 BELOW         #
+#                     TASK 2 BELOW                     #
 ########################################################
 
 psychopy.event.globalKeys.remove("all")
-
-# Set up the one-word task while we display a break message
-pause_text = psychopy.visual.TextStim(
-    window,
-    text="Time for a break!",
-    **TEXT_CONFIG,
-)
-pause_text.setAutoDraw(True)
-window.flip()
 
 # New states, controller, and logger for the one-word task
 clock.reset()
 worddf = spec.assign_frequencies_to_words(ONEWORDS, *FLICKER_RATES, rng)
 states_1word = {
+    "pause": OneWordState(
+        next="fixation",
+        dur=np.inf,
+        window=window,
+        stim=OneWordStim(
+            win=window,
+            word1="Time for a break!",
+            text_config=TEXT_CONFIG,
+            reporting_pix=REPORT_PIX,
+            reporting_pix_size=REPORT_PIX_SIZE,
+        ),
+        word_list=pd.DataFrame(
+            {
+                "w1": ["Time for a break!"],
+                "w2": [
+                    None,
+                ],
+                "w1_freq": [0],
+                "condition": ["pause"],
+            }
+        ),
+        frequencies={"words": {"word1": None}},
+        clock=clock,
+        framerate=framerate,
+        flicker_handler="frame_count",
+    ),
     "intertrial": InterTrialState(
         next="fixation",
         duration_bounds=ITI_BOUNDS,
@@ -289,6 +313,8 @@ states_1word = {
             win=window,
             word1="experiment",
             text_config=TEXT_CONFIG,
+            reporting_pix=REPORT_PIX,
+            reporting_pix_size=REPORT_PIX_SIZE,
         ),
         word_list=worddf,
         frequencies={"words": {"word1": None}},
@@ -303,6 +329,7 @@ logger = ExperimentLog(loggables=spec.LOGGABLES)
 controller = core.ExperimentController(
     states=states_1word,
     window=window,
+    current="pause",
     start="fixation",
     logger=logger,
     clock=clock,
@@ -330,7 +357,10 @@ spec.add_triggers_to_controller(
 
 
 def save_logs_quit():
-    logger.save("final_experiment.pkl")
+    try:
+        logger.save("final_experiment.pkl")
+    except Exception as e:
+        print(f"Failed to save logs: {e}")
     controller.quit()
     window.close()
     exit()
@@ -348,13 +378,8 @@ psychopy.event.globalKeys.add(
     func=controller.toggle_pause,
 )
 
-# # Wait for input and run the one-word task
-# while True:
-#     keys = psychopy.event.getKeys(["enter"])
-#     if len(keys) > 0:
-#         break
 
-pause_text.setAutoDraw(False)
 window.flip()
 clock.reset()
+controller.toggle_pause()
 controller.run_experiment()

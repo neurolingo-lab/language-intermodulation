@@ -89,6 +89,7 @@ class OneWordState(imcs.FlickerStimState):
         self.word_cond = words["condition"]
         self.stim.word1 = words["w1"]
         self.frequencies["words"]["word1"] = words["w1_freq"]
+        self.frequencies["reporting_pix"] = words["w1_freq"]
 
         self.stim_constructor_kwargs = {}
         super().__post_init__()
@@ -108,7 +109,8 @@ class OneWordState(imcs.FlickerStimState):
         self.stim.word1 = words["w1"]
 
         self.frequencies["words"]["word1"] = words["w1_freq"]
-
+        if self.stim.reporting_pix:
+            self.frequencies["reporting_pix"] = words["w1_freq"]
         return
 
 
