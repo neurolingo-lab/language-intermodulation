@@ -3,7 +3,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+import psychopy.tools.monitorunittools as mut
 import psychopy.visual
+import psychopy.visual.rect
 
 import intermodulation.core.stimuli as ics
 
@@ -14,7 +16,7 @@ WINDOW_CONFIG = {
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
-    "color": [0, 0, 0],
+    "color": [-1, -1, -1],
     "colorSpace": "rgb",
     "units": "deg",
     "checkTiming": False,
@@ -25,7 +27,7 @@ DEBUG_WINDOW_CONFIG = {
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
-    "color": [0, 0, 0],
+    "color": [-1, -1, -1],
     "colorSpace": "rgb",
     "units": "deg",
     "checkTiming": False,
@@ -61,6 +63,8 @@ class TwoWordStim(ics.StatefulStim):
     word2: str
     separation: float
     fixation_dot: bool = True
+    reporting_pix: bool = False
+    reporting_pix_size: int = 4
     text_config: Mapping = field(default_factory=TEXT_CONFIG.copy)
     dot_config: Mapping = field(default_factory=DOT_CONFIG.copy)
 
@@ -92,6 +96,26 @@ class TwoWordStim(ics.StatefulStim):
         if not self.fixation_dot:
             del self.stim_constructor_kwargs["fixation"]
             del constructors["fixation"]
+
+        if self.reporting_pix:
+            if self.reporting_pix_size % 2 != 0:
+                raise ValueError("Reporting pixel size must be an even number.")
+            upperR_corner = mut.convertToPix(
+                pos=np.array((1.0, 1.0)), vertices=np.array((0.0, 0.0)), units="norm", win=self.win
+            )
+            pix_pos = (
+                upperR_corner[0] - self.reporting_pix_size // 2,
+                upperR_corner[1] - self.reporting_pix_size // 2,
+            )
+            self.stim_constructor_kwargs["reporting_pix"] = {
+                "pos": pix_pos,
+                "height": self.reporting_pix_size,
+                "width": self.reporting_pix_size,
+                "units": "pix",
+                "fillColor": (1, 1, 1),
+                "lineWidth": 0,
+            }
+            constructors["reporting_pix"] = psychopy.visual.rect.Rect
 
         super().__init__(self.win, constructors)
 
