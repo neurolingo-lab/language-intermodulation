@@ -6,6 +6,48 @@ from byte_triggers import ParallelPortTrigger
 
 import intermodulation.core as core
 
+# Detailed display parameters for experiment
+WORD_SEP: float = 0.3  # word separation in degrees
+
+DISPLAY_RES = (1280, 720)
+DISPLAY_DISTANCE = 120  # cm
+DISPLAY_HEIGHT = 20.333333333333333333  # cm
+DISPLAY_WIDTH = 36.666666  # cm
+FOVEAL_ANGLE = 5.0  # degrees
+REPORT_PIX = True
+REPORT_PIX_SIZE = 36
+WINDOW_CONFIG = {
+    "screen": 0,  # 0 is the primary monitor
+    "fullscr": True,
+    "winType": "pyglet",
+    "allowStencil": False,
+    "monitor": "testMonitor",
+    "color": [-1, -1, -1],
+    "colorSpace": "rgb",
+    "units": "deg",
+    "checkTiming": False,
+}
+TEXT_CONFIG = {
+    "font": "Cousine Nerd Font Mono",
+    "height": 0.77,
+    "wrapWidth": None,
+    "ori": 0.0,
+    "color": "white",
+    "colorSpace": "rgb",
+    "opacity": None,
+    "languageStyle": "LTR",
+    "depth": 0.0,
+}
+DOT_CONFIG = {
+    "size": (0.05, 0.05),
+    "vertices": "circle",
+    "anchor": "center",
+    "colorSpace": "rgb",
+    "lineColor": "white",
+    "fillColor": "white",
+    "interpolate": True,
+}
+
 LOGGABLES = {
     "per_state": [
         "state_number",

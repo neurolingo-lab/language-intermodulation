@@ -9,6 +9,15 @@ import psychopy.monitors
 import psychopy.visual
 from psyquartz import Clock
 
+from intermodulation.freqtag_spec import (
+    DOT_CONFIG,
+    REPORT_PIX,
+    REPORT_PIX_SIZE,
+    TEXT_CONFIG,
+    WINDOW_CONFIG,
+    WORD_SEP,
+)
+
 try:
     from byte_triggers import ParallelPortTrigger
 except ImportError:
@@ -47,52 +56,8 @@ WORD_DURATION = 2.0  # seconds
 QUERY_DURATION = 2.0  # seconds
 ITI_BOUNDS = [0.5, 1.5]  # seconds
 QUERY_P = 0.1  # probability of a query appearing after stimulus
-N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
-N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
-WORD_SEP: int = 5  # word separation in degrees
-
-# Detailed display parameters
-DISPLAY_RES = (1280, 720)
-DISPLAY_DISTANCE = 120  # cm
-DISPLAY_WIDTH = 36.666666  # cm
-DISPLAY_HEIGHT = 20.333333333333333333  # cm
-FOVEAL_ANGLE = 5.0  # degrees
-
-REPORT_PIX = True
-REPORT_PIX_SIZE = 36
-
-WINDOW_CONFIG = {
-    "screen": 0,  # 0 is the primary monitor
-    "fullscr": True,
-    "winType": "pyglet",
-    "allowStencil": False,
-    "monitor": "testMonitor",
-    "color": [-1, -1, -1],
-    "colorSpace": "rgb",
-    "units": "deg",
-    "checkTiming": False,
-}
-TEXT_CONFIG = {
-    "font": "Cousine Nerd Font Mono",
-    "height": 0.9,
-    "wrapWidth": None,
-    "ori": 0.0,
-    "color": "white",
-    "colorSpace": "rgb",
-    "opacity": None,
-    "languageStyle": "LTR",
-    "depth": 0.0,
-}
-DOT_CONFIG = {
-    "size": (0.05, 0.05),
-    "vertices": "circle",
-    "anchor": "center",
-    "colorSpace": "rgb",
-    "lineColor": "white",
-    "fillColor": "white",
-    "interpolate": True,
-}
-
+N_BLOCKS_2W = 3  # number of blocks of stimuli to run (each block is the full word list, permuted)
+N_BLOCKS_1W = 2  # number of blocks of stimuli to run for the one-word task
 #############################################################
 #         DEBUGGING PARAMETER CHANGES HERE, IF ANY!         #
 #############################################################
