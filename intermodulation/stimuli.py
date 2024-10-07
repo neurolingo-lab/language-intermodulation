@@ -75,15 +75,15 @@ class TwoWordStim(ics.StatefulStim):
                 "word1": {
                     "text": self.word1,
                     "pos": (-self.separation / 2, 0),
-                    "anchorHoriz": "left",
-                    "alignText": "left",
+                    "anchorHoriz": "right",
+                    "alignText": "right",
                     **self.text_config,
                 },
                 "word2": {
                     "text": self.word2,
                     "pos": (self.separation / 2, 0),
-                    "anchorHoriz": "right",
-                    "alignText": "right",
+                    "anchorHoriz": "left",
+                    "alignText": "left",
                     **self.text_config,
                 },
             },
@@ -127,7 +127,7 @@ class TwoWordStim(ics.StatefulStim):
             raise ValueError(
                 "Cannot pass stim_constructor_kwargs to TwoWordStim. If you want to "
                 "modify the config after instantiation, modify the "
-                "`.word_constructor_kwargs` attribute."
+                "`.stim_constructor_kwargs` attribute."
             )
         self.stim_constructor_kwargs["words"]["word1"]["text"] = self.word1
         self.stim_constructor_kwargs["words"]["word2"]["text"] = self.word2
