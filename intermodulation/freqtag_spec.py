@@ -20,11 +20,11 @@ WORD_SEP: float = 0.3  # word separation in degrees
 
 DISPLAY_RES = (1280, 720)
 DISPLAY_DISTANCE = 120  # cm
-DISPLAY_HEIGHT = 20.333333333333333333  # cm
-DISPLAY_WIDTH = 36.666666  # cm
+DISPLAY_HEIGHT = 30.5 * (720 / 1080)  # cm
+DISPLAY_WIDTH = 55 * (1280 / 1920)  # cm
 FOVEAL_ANGLE = 5.0  # degrees
 REPORT_PIX = True
-REPORT_PIX_SIZE = 36
+REPORT_PIX_SIZE = 10
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
     "fullscr": True,
@@ -257,6 +257,32 @@ def generate_2w_states(
     wordsdf,
 ):
     states_2word = {
+        "pause": OneWordState(
+            next="fixation",
+            dur=np.inf,
+            window=window,
+            stim=OneWordStim(
+                win=window,
+                word1="Time for a break!",
+                text_config=TEXT_CONFIG,
+                reporting_pix=REPORT_PIX,
+                reporting_pix_size=REPORT_PIX_SIZE,
+            ),
+            word_list=pd.DataFrame(
+                {
+                    "w1": ["Time for a break!"],
+                    "w2": [
+                        None,
+                    ],
+                    "w1_freq": [0],
+                    "condition": ["pause"],
+                }
+            ),
+            frequencies={"words": {"word1": None}},
+            clock=clock,
+            framerate=framerate,
+            flicker_handler="frame_count",
+        ),
         "intertrial": InterTrialState(
             next="fixation",
             duration_bounds=ITI_BOUNDS,

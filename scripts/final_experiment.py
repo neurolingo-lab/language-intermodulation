@@ -47,7 +47,7 @@ ONEWORDS = pd.read_csv(parent_path / "one_word_stimuli.csv", index_col=0).sample
 )
 
 # Task parameters
-PAUSE_KEY = "4"
+PAUSE_KEY = "1"
 FIXATION_DURATION = 0.5  # seconds
 WORD_DURATION = 2.0  # seconds
 QUERY_DURATION = 2.0  # seconds
@@ -60,6 +60,11 @@ N_BLOCKS_1W = 2  # number of blocks of stimuli to run for the one-word task
 #############################################################
 # FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
 # WORD_DURATION = 2.0  # seconds
+TWOWORDS = TWOWORDS.head(15)
+ONEWORDS = ONEWORDS.head(15)
+QUERY_P = 0.5
+N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
+N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
 #############################################################
 
 # Use the psyquartz clock for platform stability
@@ -71,15 +76,17 @@ psychopy.logging.setDefaultClock(clock)
 LOGPATH.mkdir(exist_ok=True)
 
 # Choose which monitor to use for the experiment (uncomment if not testing)
-desktop = psychopy.monitors.Monitor(name="desktop", width=80.722, distance=60)
-desktop.setSizePix((3440, 1440))
-desktop.save()
-WINDOW_CONFIG["monitor"] = "desktop"
+# desktop = psychopy.monitors.Monitor(name="desktop", width=80.722, distance=60)
+# desktop.setSizePix((3440, 1440))
+# desktop.save()
+# WINDOW_CONFIG["monitor"] = "desktop"
 
-# propixx = psychopy.monitors.Monitor(name="propixx", width=DISPLAY_WIDTH, distance=DISPLAY_DISTANCE)
-# propixx.setSizePix(DISPLAY_RES)
-# propixx.save()
-# WINDOW_CONFIG["monitor"] = "propixx"
+propixx = psychopy.monitors.Monitor(
+    name="propixx", width=spec.DISPLAY_WIDTH, distance=spec.DISPLAY_DISTANCE
+)
+propixx.setSizePix(spec.DISPLAY_RES)
+propixx.save()
+WINDOW_CONFIG["monitor"] = "propixx"
 
 
 # Create the window and check the frame rate. Raise an error if the frame rate is not detected.
@@ -262,6 +269,7 @@ psychopy.event.globalKeys.add(
 
 window.flip()
 clock.reset()
+controller._resume = "fixation"
 controller.toggle_pause()
 controller.run_experiment()
 
