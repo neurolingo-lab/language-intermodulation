@@ -10,12 +10,9 @@ import psychopy.visual
 from psyquartz import Clock
 
 from intermodulation.freqtag_spec import (
-    DOT_CONFIG,
-    REPORT_PIX,
-    REPORT_PIX_SIZE,
-    TEXT_CONFIG,
     WINDOW_CONFIG,
-    WORD_SEP,
+    generate_1w_states,
+    generate_2w_states,
 )
 
 try:
@@ -26,24 +23,21 @@ except ImportError:
 import intermodulation.core as core
 import intermodulation.freqtag_spec as spec
 from intermodulation.core.events import ExperimentLog
-from intermodulation.states import (
-    FixationState,
-    InterTrialState,
-    OneWordState,
-    QueryState,
-    TwoWordState,
-)
-from intermodulation.stimuli import FixationStim, OneWordStim, QueryStim, TwoWordStim
 
 parent_path = Path(core.__file__).parents[2]
 
-# constants
+#############################################################
+#                   EXPERIMENT_PARAMETERS                   #
+#############################################################
 RANDOM_SEED = 42  # CHANGE IF NOT DEBUGGING!! SET TO NONE FOR RANDOM SEED
+
 rng = np.random.default_rng(RANDOM_SEED)
 
-# EXPERIMENT PARAMETERS
+# PC parameters: Paths and hardware info
 LOGPATH = parent_path / "logs"
 PARALLEL_PORT = "/dev/parport0"  # Set to None if no parallel port
+
+# Stimulus parameters
 FLICKER_RATES = np.array([15, 17.14286])  # Hz
 TWOWORDS = pd.read_csv(parent_path / "two_word_stimuli.csv", index_col=0).sample(
     frac=1, random_state=rng
@@ -51,6 +45,9 @@ TWOWORDS = pd.read_csv(parent_path / "two_word_stimuli.csv", index_col=0).sample
 ONEWORDS = pd.read_csv(parent_path / "one_word_stimuli.csv", index_col=0).sample(
     frac=1, random_state=rng
 )
+
+# Task parameters
+PAUSE_KEY = "4"
 FIXATION_DURATION = 0.5  # seconds
 WORD_DURATION = 2.0  # seconds
 QUERY_DURATION = 2.0  # seconds
@@ -85,13 +82,15 @@ WINDOW_CONFIG["monitor"] = "desktop"
 # WINDOW_CONFIG["monitor"] = "propixx"
 
 
+# Create the window and check the frame rate. Raise an error if the frame rate is not detected.
 window = psychopy.visual.Window(**WINDOW_CONFIG)
 framerate = window.getActualFrameRate()
 if framerate is None:
     raise ValueError("Could not determine window framerate")
 framerate = np.round(framerate)
-# framerate = 100
 
+# Create a trigger object for sending triggers to the parallel port, and if there's no working port
+# create a dummy trigger object that prints the value that would be sent.
 try:
     trigger = ParallelPortTrigger(PARALLEL_PORT, delay=2)
 except RuntimeError:
@@ -107,60 +106,26 @@ except RuntimeError:
 
 
 ########################################################
-#                     TASK 1 BELOW                     #
+#                        TASK 1                        #
 ########################################################
 
 logger = ExperimentLog(loggables=spec.LOGGABLES)
 
-# Setup of experiment components
+# Setup of experiment components: Final stimulus df with randomly assigned flicker rates,
+# states for the 2-word task, and the controller
 wordsdf = spec.assign_frequencies_to_words(TWOWORDS, *FLICKER_RATES, rng)
-states_2word = {
-    "intertrial": InterTrialState(
-        next="fixation",
-        duration_bounds=ITI_BOUNDS,
-        rng=rng,
-    ),
-    "fixation": FixationState(
-        next="words",
-        dur=FIXATION_DURATION,
-        stim=FixationStim(win=window, dot_config=DOT_CONFIG),
-        window=window,
-        clock=clock,
-        framerate=framerate,
-    ),
-    "query": QueryState(
-        next="intertrial",
-        dur=QUERY_DURATION,
-        stim=QueryStim(win=window, rng=rng, query_config=TEXT_CONFIG),
-        window=window,
-        clock=clock,
-        framerate=framerate,
-        rng=rng,
-    ),
-    "words": TwoWordState(
-        next=["query", "intertrial"],
-        transition=lambda: rng.choice([0, 1], p=[QUERY_P, 1 - QUERY_P]),
-        dur=WORD_DURATION,
-        window=window,
-        stim=TwoWordStim(
-            win=window,
-            word1="experiment",
-            word2="start",
-            separation=WORD_SEP,
-            fixation_dot=True,
-            reporting_pix=REPORT_PIX,
-            reporting_pix_size=REPORT_PIX_SIZE,
-            text_config=TEXT_CONFIG,
-            dot_config=DOT_CONFIG,
-        ),
-        word_list=wordsdf,
-        frequencies={"words": {"word1": None, "word2": None}},
-        clock=clock,
-        framerate=framerate,
-        flicker_handler="frame_count",
-    ),
-}
-
+states_2word = generate_2w_states(
+    rng,
+    FIXATION_DURATION,
+    WORD_DURATION,
+    QUERY_DURATION,
+    ITI_BOUNDS,
+    QUERY_P,
+    clock,
+    window,
+    framerate,
+    wordsdf,
+)
 controller = core.ExperimentController(
     states=states_2word,
     window=window,
@@ -171,8 +136,7 @@ controller = core.ExperimentController(
     N_blocks=N_BLOCKS_2W,
     K_blocktrials=len(TWOWORDS),
 )
-
-controller.state_calls = {
+controller.state_calls = {  # Make sure that at the end of each word stimulus we update the words
     "words": {
         "end": [
             (
@@ -183,6 +147,7 @@ controller.state_calls = {
     },
 }
 
+# Adding logging of various variables to the controller, and trigger outputs when needed
 spec.add_logging_to_controller(controller, states_2word, "query", twoword="words")
 spec.add_triggers_to_controller(
     controller,
@@ -214,6 +179,10 @@ psychopy.event.globalKeys.add(
     modifiers=["ctrl"],
     func=controller.toggle_pause,
 )
+psychopy.event.globalKeys.add(
+    key=PAUSE_KEY,
+    func=controller.toggle_pause,
+)
 controller.state_calls["all"] = {"end": []}
 controller.run_experiment()
 
@@ -222,75 +191,19 @@ date = datetime.now().isoformat(timespec="minutes")
 logger.save(LOGPATH / f"{date}_2word_experiment.pkl")
 
 ########################################################
-#                     TASK 2 BELOW                     #
+#                        TASK 2                        #
 ########################################################
 
+# Reset our global keypress events so we can reassign them to the new controller
 psychopy.event.globalKeys.remove("all")
 
-# New states, controller, and logger for the one-word task
+# New words, states, controller, and logger for the one-word task
 clock.reset()
 worddf = spec.assign_frequencies_to_words(ONEWORDS, *FLICKER_RATES, rng)
-states_1word = {
-    "pause": OneWordState(
-        next="fixation",
-        dur=np.inf,
-        window=window,
-        stim=OneWordStim(
-            win=window,
-            word1="Time for a break!",
-            text_config=TEXT_CONFIG,
-            reporting_pix=REPORT_PIX,
-            reporting_pix_size=REPORT_PIX_SIZE,
-        ),
-        word_list=pd.DataFrame(
-            {
-                "w1": ["Time for a break!"],
-                "w2": [
-                    None,
-                ],
-                "w1_freq": [0],
-                "condition": ["pause"],
-            }
-        ),
-        frequencies={"words": {"word1": None}},
-        clock=clock,
-        framerate=framerate,
-        flicker_handler="frame_count",
-    ),
-    "intertrial": InterTrialState(
-        next="fixation",
-        duration_bounds=ITI_BOUNDS,
-        rng=rng,
-    ),
-    "fixation": FixationState(
-        next="word",
-        dur=FIXATION_DURATION,
-        stim=FixationStim(win=window, dot_config=DOT_CONFIG),
-        window=window,
-        clock=clock,
-        framerate=framerate,
-    ),
-    "word": OneWordState(
-        next="intertrial",
-        dur=WORD_DURATION,
-        window=window,
-        stim=OneWordStim(
-            win=window,
-            word1="experiment",
-            text_config=TEXT_CONFIG,
-            reporting_pix=REPORT_PIX,
-            reporting_pix_size=REPORT_PIX_SIZE,
-        ),
-        word_list=worddf,
-        frequencies={"words": {"word1": None}},
-        clock=clock,
-        framerate=framerate,
-        flicker_handler="frame_count",
-    ),
-}
-
+states_1word = generate_1w_states(
+    rng, FIXATION_DURATION, WORD_DURATION, ITI_BOUNDS, clock, window, framerate, worddf
+)
 logger = ExperimentLog(loggables=spec.LOGGABLES)
-
 controller = core.ExperimentController(
     states=states_1word,
     window=window,
@@ -302,13 +215,12 @@ controller = core.ExperimentController(
     N_blocks=N_BLOCKS_1W,
     K_blocktrials=len(ONEWORDS),
 )
-
 controller.state_calls = {
     "word": {
         "end": [states_1word["word"].update_word],
     },
 }
-
+# Triggers and logging for the one-word task
 spec.add_logging_to_controller(controller, states_1word, oneword="word")
 spec.add_triggers_to_controller(
     controller,
@@ -321,6 +233,7 @@ spec.add_triggers_to_controller(
 )
 
 
+# Set up CTRL + C handling for graceful exit with logs
 def save_logs_quit():
     try:
         logger.save("final_experiment.pkl")
@@ -342,9 +255,16 @@ psychopy.event.globalKeys.add(
     modifiers=["ctrl"],
     func=controller.toggle_pause,
 )
-
+psychopy.event.globalKeys.add(
+    key=PAUSE_KEY,
+    func=controller.toggle_pause,
+)
 
 window.flip()
 clock.reset()
 controller.toggle_pause()
 controller.run_experiment()
+
+# Save logs
+date = datetime.now().isoformat(timespec="minutes")
+logger.save(LOGPATH / f"{date}_1word_experiment.pkl")
