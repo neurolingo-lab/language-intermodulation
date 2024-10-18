@@ -29,8 +29,8 @@ parent_path = Path(core.__file__).parents[2]
 #############################################################
 #                   EXPERIMENT_PARAMETERS                   #
 #############################################################
-# RANDOM_SEED = 42  # CHANGE IF NOT DEBUGGING!! SET TO NONE FOR RANDOM SEED
-RANDOM_SEED = None
+RANDOM_SEED = 42  # CHANGE IF NOT DEBUGGING!! SET TO NONE FOR RANDOM SEED
+
 rng = np.random.default_rng(RANDOM_SEED)
 
 # PC parameters: Paths and hardware info
@@ -38,7 +38,7 @@ LOGPATH = parent_path / "logs"
 PARALLEL_PORT = "/dev/parport0"  # Set to None if no parallel port
 
 # Stimulus parameters
-FLICKER_RATES = np.array([20.0, 30.0])  # Hz
+FLICKER_RATES = np.array([20.0, 30])  # Hz
 TWOWORDS = pd.read_csv(parent_path / "two_word_stimuli.csv", index_col=0).sample(
     frac=1, random_state=rng
 )
@@ -58,13 +58,13 @@ N_BLOCKS_1W = 2  # number of blocks of stimuli to run for the one-word task
 #############################################################
 #         DEBUGGING PARAMETER CHANGES HERE, IF ANY!         #
 #############################################################
-# # FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
-# # WORD_DURATION = 2.0  # seconds
-# TWOWORDS = TWOWORDS.head(15)
-# ONEWORDS = ONEWORDS.head(15)
-# QUERY_P = 0.5
-# N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
-# N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
+# FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
+# WORD_DURATION = 2.0  # seconds
+TWOWORDS = TWOWORDS.head(15)
+ONEWORDS = ONEWORDS.head(15)
+QUERY_P = 0.5
+N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
+N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
 #############################################################
 
 # Use the psyquartz clock for platform stability
@@ -273,6 +273,6 @@ controller._resume = "fixation"
 controller.toggle_pause()
 controller.run_experiment()
 
-# Save logs
-date = datetime.now().isoformat(timespec="minutes")
-logger.save(LOGPATH / f"{date}_1word_experiment.pkl")
+# # Save logs
+# date = datetime.now().isoformat(timespec="minutes")
+# logger.save(LOGPATH / f"{date}_1word_experiment.pkl")
