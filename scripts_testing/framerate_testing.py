@@ -3,8 +3,8 @@ from pathlib import Path
 import pandas as pd
 import psychopy.visual
 import psychtoolbox as ptb
-from psychopy.visual.rect import Rect
 from byte_triggers import ParallelPortTrigger
+from psychopy.visual.rect import Rect
 
 import intermodulation.core as imc
 import intermodulation.utils as imu
@@ -12,7 +12,7 @@ import intermodulation.utils as imu
 # constants
 TESTING_TIME = 15
 WINDOW_CONFIG = {
-    "screen": 0,  # 0 is the primary monitor
+    "screen": 1,  # 0 is the primary monitor
     "fullscr": True,
     "winType": "pyglet",
     "allowStencil": False,
@@ -101,6 +101,4 @@ while clock.getTime() < TESTING_TIME:
     i += 1
 
 logger.save(SAVEPATH / "framerate_flicker_test_bothlogs.pkl")
-pd.Series(flipt).to_csv(
-    SAVEPATH / "framerate_flicker_test_fliptimes_bothlogs.csv", index=False
-)
+pd.Series(flipt).to_csv(SAVEPATH / "framerate_flicker_test_fliptimes_bothlogs.csv", index=False)
