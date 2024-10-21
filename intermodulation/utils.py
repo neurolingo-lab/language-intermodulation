@@ -1,4 +1,5 @@
 from collections.abc import Mapping, Sequence
+from typing import Callable
 
 import numpy as np
 
@@ -85,7 +86,11 @@ def parse_calls(call_list):
     """
     for call in call_list:
         if not isinstance(call, Sequence):
-            raise TypeError("Call list must be a list-like.")
+            if isinstance(call, Callable):
+                yield call, (), {}
+                return
+            else:
+                raise TypeError("Call list must be a list-like.")
         sequences = tuple(filter(lambda x: isinstance(x, Sequence), call))
         mappings = tuple(filter(lambda x: isinstance(x, Mapping), call))
         f = call[0]

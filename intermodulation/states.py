@@ -18,6 +18,12 @@ DOT_DEFAULT = {
     "fillColor": "white",
     "interpolate": True,
 }
+REPORT_PIX_VALS = {
+    (False, False): (-1, -1, -1),
+    (True, False): (-(1 / 3), -(1 / 3), -(1 / 3)),
+    (False, True): (1 / 3, 1 / 3, 1 / 3),
+    (True, True): (1, 1, 1),
+}
 
 
 @dataclass
@@ -37,7 +43,10 @@ class TwoWordState(imcs.FlickerStimState):
         self.frequencies["words"]["word2"] = words["w2_freq"]
 
         self.stim_constructor_kwargs = {}
+
         super().__post_init__()
+        if self.stim.reporting_pix:
+            self.update_calls.append(self._set_pixreport)
         # Debug calls
         # self.start_calls.append((lambda t: print(self.pair_idx),))
         # self.end_calls.append((lambda t: print(self.pair_idx),))
@@ -62,6 +71,10 @@ class TwoWordState(imcs.FlickerStimState):
 
         return
 
+    def _set_pixreport(self, *args, **kwargs):
+        word_states = (self.stim.states["words"]["word1"], self.stim.states["words"]["word2"])
+        self.stim.stim["reporting_pix"].fillColor = REPORT_PIX_VALS[word_states]
+
 
 @dataclass
 class OneWordState(imcs.FlickerStimState):
@@ -73,9 +86,10 @@ class OneWordState(imcs.FlickerStimState):
 
         # Ignore the initial passed words and use the list
         words = self.word_list.iloc[self.word_idx]
-        self.phrase_cond = words["condition"]
-        self.stim.word1 = words["word"]
-        self.frequencies["words"]["word"] = words["word_freq"]
+        self.word_cond = words["condition"]
+        self.stim.word1 = words["w1"]
+        self.frequencies["words"]["word1"] = words["w1_freq"]
+        self.frequencies["reporting_pix"] = words["w1_freq"]
 
         self.stim_constructor_kwargs = {}
         super().__post_init__()
@@ -83,19 +97,20 @@ class OneWordState(imcs.FlickerStimState):
     def update_word(self, query_state=None):
         if query_state is not None and isinstance(query_state, QueryState):
             query_state.word_list = self.word_list
-            query_state.stim_idx = int(self.pair_idx)
+            query_state.stim_idx = int(self.word_idx)
 
-        if self.pair_idx == (len(self.word_list) - 1):
-            self.pair_idx = 0
+        if self.word_idx == (len(self.word_list) - 1):
+            self.word_idx = 0
         else:
-            self.pair_idx += 1
+            self.word_idx += 1
 
-        words = self.word_list.iloc[self.pair_idx]
-        self.phrase_cond = words["condition"]
+        words = self.word_list.iloc[self.word_idx]
+        self.word_cond = words["condition"]
         self.stim.word1 = words["w1"]
 
         self.frequencies["words"]["word1"] = words["w1_freq"]
-
+        if self.stim.reporting_pix:
+            self.frequencies["reporting_pix"] = words["w1_freq"]
         return
 
 
