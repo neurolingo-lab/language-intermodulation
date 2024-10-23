@@ -1,8 +1,8 @@
-from types import SimpleNamespace
 from typing import Hashable, Sequence
 
 import numpy as np
 import pandas as pd
+from attridict import AttriDict
 from byte_triggers import ParallelPortTrigger
 
 import intermodulation.core as core
@@ -14,6 +14,7 @@ from intermodulation.states import (
     TwoWordState,
 )
 from intermodulation.stimuli import FixationStim, OneWordStim, QueryStim, TwoWordStim
+from intermodulation.utils import nested_iteritems
 
 # Detailed display parameters for experiment
 WORD_SEP: float = 0.3  # word separation in degrees
@@ -93,7 +94,7 @@ LOGGABLES = {
 #      the left or right
 # - 40-50: One-word stimulus condition triggers (nested namespace for word, non-word)
 #      And within each condition (W, NW) another nested namespace for frequency tag 1 being on L/R
-TRIGGERS = SimpleNamespace(
+TRIGGERS = AttriDict(
     STATEEND=10,
     TRIALEND=11,
     BLOCKEND=12,
@@ -105,43 +106,44 @@ TRIGGERS = SimpleNamespace(
     ERROR=18,
     EXPEND=255,
     # 20-30 are reserved for the query condition
-    QUERY=SimpleNamespace(
-        TRUE=SimpleNamespace(
+    QUERY=dict(
+        TRUE=dict(
             F1LEFT=20,
             F1RIGHT=21,
         ),
-        FALSE=SimpleNamespace(
+        FALSE=dict(
             F1LEFT=22,
             F1RIGHT=23,
         ),
     ),
     # 30-40 are reserved for the two-word stimulus condition
-    TWOWORD=SimpleNamespace(
-        PHRASE=SimpleNamespace(
+    TWOWORD=dict(
+        PHRASE=dict(
             F1LEFT=30,
             F1RIGHT=31,
         ),
-        NONPHRASE=SimpleNamespace(
+        NONPHRASE=dict(
             F1LEFT=32,
             F1RIGHT=33,
         ),
-        NONWORD=SimpleNamespace(
+        NONWORD=dict(
             F1LEFT=34,
             F1RIGHT=35,
         ),
     ),
     # 40-50 are reserved for the one-word stimulus condition
-    ONEWORD=SimpleNamespace(
-        WORD=SimpleNamespace(
+    ONEWORD=dict(
+        WORD=dict(
             F1=40,
             F2=41,
         ),
-        NONWORD=SimpleNamespace(
+        NONWORD=dict(
             F1=42,
             F2=43,
         ),
     ),
 )
+LUT_TRIGGERS = {v: k for k, v in nested_iteritems(TRIGGERS)}
 
 
 def assign_frequencies_to_words(wordsdf, freq1: float, freq2: float, rng: np.random.Generator):
