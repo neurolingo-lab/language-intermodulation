@@ -142,3 +142,29 @@ def flip_state(t, target_t, keymask, framerate):
         keymask[ts_idx] = False
         return True, keymask
     return False, keymask
+
+
+def infer_states(events, triggers, first_samp=0):
+    """
+    Infer the state start/end times from a set of events produced by `mne.find_events` and a
+    set of known trigger values.
+
+    Parameters
+    ----------
+    events : np.ndarray
+        N x 3 array of events produced by `mne.find_events`.
+    triggers : AttriDict
+        A nested AttriDict of different trigger types and their corresponding values.
+    first_samp : int
+        The index of the first sample in the data. Usually taken from mne.Raw.first_samp. Default 0
+    """
+    lut = {v: k for k, v in nested_iteritems(triggers)}
+
+    endmask = events[:, 2] == triggers.STATEEND
+    starttimes = events[~endmask]
+    endtimes = events[endmask]
+    records = []
+    for tidx, prev, trig in starttimes:
+        if trig in lut:
+            stidx = np.searchsorted(endtimes[:, 0], tidx)
+            next_end = np.argwhere(endtimes[:, 2][stidx:] == triggers.STATEEND).flatten()[0]
