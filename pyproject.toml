@@ -29,7 +29,7 @@ dependencies = [
 analysis = [
     "ipython",
     "statsmodels",
-    "mne[hdf5]",
+    "mne",
 ]
 testing = [
     "pytest",
