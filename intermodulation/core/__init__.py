@@ -137,7 +137,8 @@ class ExperimentController:
             raise ValueError("Experiment already running. How did we get here?")
         self.state = self.states[self.current]
         self.run_state(self.current)
-        # breakpoint()
+        # TODO: The next line will overwrite logs from the "current" state if it's not the start.
+        # Make sure that the current is logged to state -1 or similar.
         if self.current == self.start:
             self.inc_counters()
         while self.next:
