@@ -37,6 +37,17 @@ testing = [
     "pytest-cov",
     "ruff",
 ]
+psych-minimal = [
+    "tables",
+    "json-tricks",
+    "pyglet",
+    "pyserial",
+    "pillow",
+    "imageio",
+    "imageio-ffmpeg"
+    "msgpack-numpy",
+    "msgpack",
+]
 full = [
     "intermodulation[analysis]",
     "intermodulation[testing]",
