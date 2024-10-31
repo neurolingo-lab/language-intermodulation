@@ -7,8 +7,8 @@ import psychopy.visual
 from psyquartz import Clock
 
 import intermodulation.core as core
-import intermodulation.freqtag_spec as spec
-from intermodulation.core import ExperimentController
+import intermodulation.utils as spec
+from intermodulation.core.controller import ExperimentController
 from intermodulation.core.events import ExperimentLog
 from intermodulation.states import TwoWordState
 from intermodulation.stimuli import TwoWordStim

@@ -3,7 +3,7 @@ import pytest
 from psychopy.visual.shape import ShapeStim
 
 from intermodulation.core.stimuli import StatefulStim
-from intermodulation.utils import nested_deepkeys, nested_get, nested_set
+from intermodulation.core.utils import nested_deepkeys, nested_get
 
 
 @pytest.fixture

@@ -1,10 +1,17 @@
 import asyncio
 
-import pytest
 import psychopy.core
+import pytest
 
-from intermodulation.utils import (nested_get, nested_iteritems, nested_deepkeys,
-                                   nested_keys, nested_set, maxdepth_keys, lazy_time)
+from intermodulation.core.utils import (
+    lazy_time,
+    maxdepth_keys,
+    nested_deepkeys,
+    nested_get,
+    nested_iteritems,
+    nested_keys,
+    nested_set,
+)
 
 
 @pytest.fixture
@@ -20,6 +27,7 @@ def nested_dict():
         },
     }
 
+
 @pytest.fixture
 def deepkeys():
     return [
@@ -28,6 +36,7 @@ def deepkeys():
         ("b", "d", "e"),
         ("b", "d", "f"),
     ]
+
 
 @pytest.fixture
 def allkeys():
@@ -52,8 +61,8 @@ class TestNested:
         assert list(nested_deepkeys(nested_dict)) == deepkeys
 
     def test_keys(self, nested_dict, allkeys):
-        assert list(nested_keys(nested_dict)) == allkeys        
-    
+        assert list(nested_keys(nested_dict)) == allkeys
+
     def test_get(self, nested_dict):
         assert nested_get(nested_dict, ("a",)) == 1
         assert nested_get(nested_dict, ("b", "c")) == 2
@@ -71,7 +80,9 @@ class TestNested:
         assert nested_get(nested_dict, ("b", "d", "f")) == 8
 
     def test_maxdepth(self, nested_dict, deepkeys, allkeys):
-        assert maxdepth_keys(nested_dict, depth=0, deepest=True) == [("a",),]
+        assert maxdepth_keys(nested_dict, depth=0, deepest=True) == [
+            ("a",),
+        ]
         assert maxdepth_keys(nested_dict, depth=1, deepest=True) == [("a",), ("b", "c")]
         assert maxdepth_keys(nested_dict, depth=2, deepest=True) == deepkeys
         assert maxdepth_keys(nested_dict, depth=-1, deepest=True) == [("a",), ("b", "c")]
@@ -79,7 +90,6 @@ class TestNested:
         assert maxdepth_keys(nested_dict, depth=1) == [("a",), ("b",), ("b", "c"), ("b", "d")]
         assert maxdepth_keys(nested_dict, depth=2) == allkeys
         assert maxdepth_keys(nested_dict, depth=-1) == [("a",), ("b",), ("b", "c"), ("b", "d")]
-
 
 
 def test_lazy_clock():

@@ -7,7 +7,7 @@ from byte_triggers import ParallelPortTrigger
 from psychopy.visual.rect import Rect
 
 import intermodulation.core as imc
-import intermodulation.utils as imu
+import intermodulation.core.utils as imu
 
 # constants
 TESTING_TIME = 15

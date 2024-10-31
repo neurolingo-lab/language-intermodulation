@@ -1,15 +1,13 @@
-from time import sleep
 from dataclasses import dataclass, field
 
+import numpy as np
 import psychopy.core
 import psychopy.visual
 import pytest
-import numpy as np
 
-from intermodulation.core import ExperimentController
-from intermodulation.core.states import MarkovState
 from intermodulation.core.events import ExperimentLog
-from intermodulation.utils import lazy_time
+from intermodulation.core.ExperimentController import ExperimentController
+from intermodulation.core.states import MarkovState
 
 FLIPDUR = 0.5
 
@@ -113,13 +111,15 @@ def loggingstate():
 
         def start_state(self, t):
             self.log_onflip.append("state_start")
-        
+
         def update_state(self, t):
             self.log_onflip.append("update_flip")
 
         def end_state(self, t):
             self.log_onflip.append("state_end")
+
     return LoggingState
+
 
 class TestExpController:
     def test_init(
@@ -205,7 +205,7 @@ class TestExpController:
         assert call_log.index("end") == len(call_log) - 1
 
     def test_state_run_logger(self, loggingstate, dummy_window, dummy_clock, logger):
-        logging_states = {"state1": loggingstate("state1", 2., name="state1")}
+        logging_states = {"state1": loggingstate("state1", 2.0, name="state1")}
         controller = ExperimentController(
             logging_states,
             dummy_window,
@@ -224,7 +224,7 @@ class TestExpController:
         assert logger.states[0]["state_end"] == 2.5
 
     def test_exp_run_logger(self, loggingstate, dummy_window, dummy_clock, logger):
-        logging_states = {"state1": loggingstate("state1", 2., name="state1")}
+        logging_states = {"state1": loggingstate("state1", 2.0, name="state1")}
         controller = ExperimentController(
             logging_states,
             dummy_window,
@@ -239,9 +239,9 @@ class TestExpController:
         assert len(logger.states) == 4
         assert len(logger.continuous[0]["update_flip"]) == 3
         assert logger.states[0]["state_end"] == 2.5
-        assert logger.states[1]["state_start"] == 3.
+        assert logger.states[1]["state_start"] == 3.0
         assert all([st["state"] == "state1" for _, st in logger.states.items()])
-        assert all([st["state_end"] - st["state_start"] == 2. for _, st in logger.states.items()])
+        assert all([st["state_end"] - st["state_start"] == 2.0 for _, st in logger.states.items()])
 
     def test_run_det_state(self, determin_states, dummy_window, dummy_clock, logger):
         controller = ExperimentController(
@@ -262,7 +262,7 @@ class TestExpController:
         statenums = [int(tr["state"][-1]) for _, tr in logger.states.items()]
         assert statenums == [1, 2, 3, 4] * 4
         durs = [tr["state_end"] - tr["state_start"] for _, tr in logger.states.items()]
-        assert durs == [2., 1.] * 8
+        assert durs == [2.0, 1.0] * 8
 
         # Clock runs in 0.5s increments, so there should be 4 flips per state, 4 states per trial,
         # and 4 trials in the experiment. Therefore 64 flips.

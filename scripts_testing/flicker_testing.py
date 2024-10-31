@@ -3,11 +3,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import psychopy.visual
-from psychopy.visual.rect import Rect
 from byte_triggers import ParallelPortTrigger
+from psychopy.visual.rect import Rect
 
 import intermodulation.core as imc
-import intermodulation.utils as imu
+import intermodulation.core.utils as imu
 
 # constants
 WINDOW_CONFIG = {
@@ -34,7 +34,7 @@ LOGGABLES = {
     ],
 }
 FREQUENCIES = np.arange(2, 120, step=0.5)
-TRIAL_DUR = 2.
+TRIAL_DUR = 2.0
 
 
 # initialize components

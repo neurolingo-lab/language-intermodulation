@@ -9,11 +9,13 @@ import psychopy.monitors
 import psychopy.visual
 from psyquartz import Clock
 
+import intermodulation.core.controller
+import intermodulation.utils
 from intermodulation.freqtag_spec import (
     WINDOW_CONFIG,
-    generate_1w_states,
-    generate_2w_states,
 )
+from intermodulation.generate_2w_states import generate_2w_states
+from intermodulation.utils import generate_1w_states
 
 try:
     from byte_triggers import ParallelPortTrigger
@@ -120,7 +122,7 @@ logger = ExperimentLog(loggables=spec.LOGGABLES)
 
 # Setup of experiment components: Final stimulus df with randomly assigned flicker rates,
 # states for the 2-word task, and the controller
-wordsdf = spec.assign_frequencies_to_words(TWOWORDS, *FLICKER_RATES, rng)
+wordsdf = intermodulation.utils.assign_frequencies_to_words(TWOWORDS, *FLICKER_RATES, rng)
 states_2word = generate_2w_states(
     rng,
     FIXATION_DURATION,
@@ -133,7 +135,7 @@ states_2word = generate_2w_states(
     framerate,
     wordsdf,
 )
-controller = core.ExperimentController(
+controller = intermodulation.core.controller.ExperimentController(
     states=states_2word,
     window=window,
     start="fixation",
@@ -155,8 +157,8 @@ controller.state_calls = {  # Make sure that at the end of each word stimulus we
 }
 
 # Adding logging of various variables to the controller, and trigger outputs when needed
-spec.add_logging_to_controller(controller, states_2word, "query", twoword="words")
-spec.add_triggers_to_controller(
+intermodulation.utils.add_logging_to_controller(controller, states_2word, "query", twoword="words")
+intermodulation.utils.add_triggers_to_controller(
     controller,
     trigger,
     FLICKER_RATES,
@@ -206,12 +208,12 @@ psychopy.event.globalKeys.remove("all")
 
 # New words, states, controller, and logger for the one-word task
 clock.reset()
-worddf = spec.assign_frequencies_to_words(ONEWORDS, *FLICKER_RATES, rng)
+worddf = intermodulation.utils.assign_frequencies_to_words(ONEWORDS, *FLICKER_RATES, rng)
 states_1word = generate_1w_states(
     rng, FIXATION_DURATION, WORD_DURATION, ITI_BOUNDS, clock, window, framerate, worddf
 )
 logger = ExperimentLog(loggables=spec.LOGGABLES)
-controller = core.ExperimentController(
+controller = intermodulation.core.controller.ExperimentController(
     states=states_1word,
     window=window,
     current="pause",
@@ -228,8 +230,8 @@ controller.state_calls = {
     },
 }
 # Triggers and logging for the one-word task
-spec.add_logging_to_controller(controller, states_1word, oneword="word")
-spec.add_triggers_to_controller(
+intermodulation.utils.add_logging_to_controller(controller, states_1word, oneword="word")
+intermodulation.utils.add_triggers_to_controller(
     controller,
     trigger,
     FLICKER_RATES,

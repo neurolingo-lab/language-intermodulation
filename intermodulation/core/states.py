@@ -11,7 +11,7 @@ from attridict import AttriDict
 
 import intermodulation.core.stimuli as stimuli
 from intermodulation.core import _types
-from intermodulation.utils import (
+from intermodulation.core.utils import (
     get_nearest_f,
     nested_deepkeys,
     nested_get,
