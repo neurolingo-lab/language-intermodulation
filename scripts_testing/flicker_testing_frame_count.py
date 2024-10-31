@@ -3,11 +3,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import psychopy.visual
-from psychopy.visual.rect import Rect
 from byte_triggers import ParallelPortTrigger
+from psychopy.visual.rect import Rect
 
 import intermodulation.core as imc
-import intermodulation.utils as imu
+import intermodulation.core.utils
 
 # constants
 WINDOW_CONFIG = {
@@ -42,7 +42,7 @@ framerate = window.getActualFrameRate()
 print(f"Exact framerate of {framerate} Hz")
 print(f"Rounded to {np.round(framerate).astype(int)} for choosing test freqs")
 f_vals = np.linspace(4, 120, 1000)
-nearest = imu.get_nearest_f(f_vals, np.round(framerate).astype(int))
+nearest = intermodulation.core.utils.get_nearest_f(f_vals, np.round(framerate).astype(int))
 FREQUENCIES = np.unique(nearest)
 FREQUENCIES = FREQUENCIES[np.isfinite(FREQUENCIES)]
 print(f"Total of {len(FREQUENCIES)} unique possible frequencies between 4 and 120 Hz")
@@ -84,19 +84,19 @@ for i, freq in enumerate(FREQUENCIES):
     state.start_state(flipt)
     logger.log(i, "flicker_freq", freq)
     logger.log(i, "duration", 2.0)
-    logger.log(i, "flicker_switches", imu.lazy_time(clock))
-    logger.log(i, "state_start", imu.lazy_time(clock))
+    logger.log(i, "flicker_switches", intermodulation.core.utils.lazy_time(clock))
+    logger.log(i, "state_start", intermodulation.core.utils.lazy_time(clock))
     trigger.signal(i + 1)
     window.flip()
     logger.log_flip()
     while (fft := window.getFutureFlipTime(clock=clock)) < state.stimon_t + state.dur:
         state.update_state(fft)
         if len(state.log_onflip) > 0:
-            logger.log(i, "flicker_switches", imu.lazy_time(clock))
+            logger.log(i, "flicker_switches", intermodulation.core.utils.lazy_time(clock))
         window.flip()
         logger.log_flip()
     state.end_state(window.getFutureFlipTime(clock=clock))
-    logger.log(i, "state_end", imu.lazy_time(clock))
+    logger.log(i, "state_end", intermodulation.core.utils.lazy_time(clock))
     window.flip()
     logger.log_flip()
 window.close()

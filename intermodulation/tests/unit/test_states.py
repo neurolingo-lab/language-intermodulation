@@ -8,9 +8,18 @@ from scipy.interpolate import interp1d
 
 import intermodulation.core.states as cstates
 import intermodulation.core.stimuli as cstim
-from intermodulation.utils import (nested_deepkeys, nested_get,
-                                   nested_iteritems, nested_set, get_nearest_f)
-from intermodulation.tests.unit.test_stimuli import window, constructors, constructor_kwargs  # noqa: F401
+from intermodulation.core.utils import (
+    get_nearest_f,
+    nested_deepkeys,
+    nested_get,
+    nested_iteritems,
+    nested_set,
+)
+from intermodulation.tests.unit.test_stimuli import (  # noqa: F401
+    constructor_kwargs,
+    constructors,
+    window,
+)
 
 
 def get_flicker_set():
@@ -52,8 +61,9 @@ def flickerstate(lowfreqs, window, clock, stim, constructor_kwargs):
         stim=stim,
         stim_constructor_kwargs=constructor_kwargs,
         clock=clock,
-        flicker_handler="target_t"
+        flicker_handler="target_t",
     )
+
 
 @pytest.fixture
 def flickerstate_frames(lowfreqs, window, clock, stim, constructor_kwargs):
@@ -65,9 +75,8 @@ def flickerstate_frames(lowfreqs, window, clock, stim, constructor_kwargs):
         stim=stim,
         stim_constructor_kwargs=constructor_kwargs,
         clock=clock,
-        flicker_handler="frame_count"
+        flicker_handler="frame_count",
     )
-
 
 
 class TestMarkovState:
@@ -208,20 +217,25 @@ class TestFlickerState:
         for word in ["w1", "w2"]:
             nearest = get_nearest_f(lowfreqs["words"][word], flickerstate_frames.framerate)
             halfcycles.append(int(flickerstate_frames.framerate / (2 * nearest)))
-        
+
         flickerstate_frames._compute_flicker_frame_count(0.0)
         w1_target = np.arange(
-            halfcycles[0] - 1, halfcycles[0] + flickerstate_frames.precompute_flicker_t * flickerstate_frames.framerate, halfcycles[0],
+            halfcycles[0] - 1,
+            halfcycles[0]
+            + flickerstate_frames.precompute_flicker_t * flickerstate_frames.framerate,
+            halfcycles[0],
         )
         w2_target = np.arange(
-            halfcycles[1] - 1, halfcycles[1] + flickerstate_frames.precompute_flicker_t * flickerstate_frames.framerate, halfcycles[1],
+            halfcycles[1] - 1,
+            halfcycles[1]
+            + flickerstate_frames.precompute_flicker_t * flickerstate_frames.framerate,
+            halfcycles[1],
         )
         assert hasattr(flickerstate_frames, "switch_frames")
         assert halfcycles[0] == (flickerstate_frames.switch_frames["words"]["w1"][0] + 1)
         assert np.all(flickerstate_frames.switch_frames["words"]["w1"] == w1_target)
         assert np.all(flickerstate_frames.switch_frames["words"]["w2"] == w2_target)
         assert flickerstate_frames.switch_frames["shapes"]["fixdot"] is None
-
 
     def test_flicker_start(self, flickerstate, constructor_kwargs):
         flickerstate.start_state(0.0)
@@ -235,9 +249,7 @@ class TestFlickerState:
         flickerstate.window.close()
 
     @pytest.mark.parametrize("lowfreqs", get_flicker_set())
-    def test_flicker_update_stim_twowords(
-        self, lowfreqs, window, stim, clock, constructor_kwargs
-    ):
+    def test_flicker_update_stim_twowords(self, lowfreqs, window, stim, clock, constructor_kwargs):
         flickers = [v for k, v in nested_iteritems(lowfreqs) if v not in (None, 0.0)]
         flickerkeys = [k for k, v in nested_iteritems(lowfreqs) if v not in (None, 0.0)]
         bestframerate = np.prod(flickers)
@@ -252,7 +264,7 @@ class TestFlickerState:
             stim_constructor_kwargs=constructor_kwargs,
             clock=clock,
             framerate=bestframerate,
-            flicker_handler="target_t"
+            flicker_handler="target_t",
         )
         flickerstate.start_state(0.0)
         predstates = {}

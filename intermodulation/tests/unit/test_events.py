@@ -1,11 +1,11 @@
 from time import sleep
 
+import numpy as np
 import psychopy.core
 import pytest
-import numpy as np
 
 from intermodulation.core.events import ExperimentLog
-from intermodulation.utils import lazy_time
+from intermodulation.core.utils import lazy_time
 
 
 @pytest.fixture
