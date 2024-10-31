@@ -1,1 +1,1 @@
-from .controller import ExperimentController
+from .controller import ExperimentController as ExperimentController
