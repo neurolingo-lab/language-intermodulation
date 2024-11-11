@@ -68,6 +68,7 @@ LOGGABLES = {
     "continuous_per_state": [
         ("words", "word1"),
         ("words", "word2"),
+        "reporting_pix",
     ],
 }
 
@@ -124,5 +125,6 @@ TRIGGERS = AttriDict(
             F2=43,
         ),
     ),
+    MASK=50,
 )
 LUT_TRIGGERS = {v: k for k, v in nested_iteritems(TRIGGERS)}

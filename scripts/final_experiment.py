@@ -12,6 +12,7 @@ from psyquartz import Clock
 import intermodulation.core.controller
 import intermodulation.utils
 from intermodulation.freqtag_spec import (
+    TRIGGERS,
     WINDOW_CONFIG,
 )
 from intermodulation.utils import generate_1w_states, generate_2w_states
@@ -55,19 +56,19 @@ QUERY_DURATION = 2.0  # seconds
 ITI_BOUNDS = [0.5, 1.5]  # seconds
 QUERY_P = 0.3333333  # probability of a query appearing after stimulus
 N_BLOCKS_2W = 3  # number of blocks of stimuli to run (each block is the full word list, permuted)
-N_BLOCKS_1W = 2  # number of blocks of stimuli to run for the one-word task
+N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
 FORCE_FR = None
 #############################################################
 #         DEBUGGING PARAMETER CHANGES HERE, IF ANY!         #
 #############################################################
-FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
+# FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
 # WORD_DURATION = 2.0  # seconds
 # TWOWORDS = TWOWORDS.head(15)
 # ONEWORDS = ONEWORDS.head(15)
 # QUERY_P = 1.0
 # N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 # N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
-FORCE_FR = 100  # Force the frame rate to 100 for testing
+# FORCE_FR = 100  # Force the frame rate to 100 for testing
 #############################################################
 
 # Use the psyquartz clock for platform stability
@@ -212,7 +213,7 @@ expltext = psychopy.visual.TextStim(
 expltext.draw()
 window.flip()
 
-psychopy.event.waitKeys(keyList=["4"])
+psychopy.event.waitKeys(keyList=["1"])
 del expltext
 
 
@@ -222,9 +223,9 @@ controller.run_experiment()
 date = datetime.now().strftime("%Y-%m-%d_%H-%M")
 logger.save(LOGPATH / f"{date}_2word_experiment.pkl")
 
-########################################################
-#                        TASK 2                        #
-########################################################
+# ########################################################
+# #                        TASK 2                        #
+# ########################################################
 
 # Reset our global keypress events so we can reassign them to the new controller
 psychopy.event.globalKeys.remove("all")
@@ -263,6 +264,94 @@ intermodulation.utils.add_triggers_to_controller(
     "fixation",
     oneword="word",
 )
+
+
+# Set up CTRL + C handling for graceful exit with logs
+def save_logs_quit():
+    try:
+        logger.save("final_experiment.pkl")
+    except Exception as e:
+        print(f"Failed to save logs: {e}")
+    controller.quit()
+    window.close()
+    exit()
+    return
+
+
+psychopy.event.globalKeys.add(
+    key="q",
+    modifiers=["ctrl"],
+    func=save_logs_quit,
+)
+psychopy.event.globalKeys.add(
+    key="p",
+    modifiers=["ctrl"],
+    func=controller.toggle_pause,
+)
+psychopy.event.globalKeys.add(
+    key=PAUSE_KEY,
+    func=controller.toggle_pause,
+)
+
+window.flip()
+clock.reset()
+controller._resume = "fixation"
+controller.toggle_pause()
+controller.run_experiment()
+
+# Save logs
+date = datetime.now().strftime("%Y-%m-%d_%H-%M")
+logger.save(LOGPATH / f"{date}_1word_experiment.pkl")
+
+########################################################
+#                        TASK 2.5                      #
+########################################################
+
+# Reset our global keypress events so we can reassign them to the new controller
+psychopy.event.globalKeys.remove("all")
+
+# New words, states, controller, and logger for the one-word task
+clock.reset()
+worddf = intermodulation.utils.assign_frequencies_to_words(ONEWORDS, *FLICKER_RATES, rng)
+states_1word = generate_1w_states(
+    rng, FIXATION_DURATION, WORD_DURATION, ITI_BOUNDS, clock, window, framerate, worddf
+)
+intermodulation.utils.add_masked_1w_states(states_1word, worddf)
+
+logger = ExperimentLog(loggables=spec.LOGGABLES)
+controller = intermodulation.core.controller.ExperimentController(
+    states=states_1word,
+    window=window,
+    current="pause",
+    start="fixation",
+    logger=logger,
+    clock=clock,
+    trial_endstate="intertrial",
+    N_blocks=N_BLOCKS_1W,
+    K_blocktrials=len(ONEWORDS),
+)
+controller.state_calls = {
+    "mask": {
+        "end": [states_1word["mask"].update_word],
+    },
+    "word": {
+        "end": [states_1word["word"].update_word],
+    },
+}
+
+# Triggers and logging for the one-word task
+intermodulation.utils.add_logging_to_controller(controller, states_1word, oneword="word")
+intermodulation.utils.add_triggers_to_controller(
+    controller,
+    trigger,
+    FLICKER_RATES,
+    states_1word,
+    "intertrial",
+    "fixation",
+    oneword="word",
+)
+controller.state_calls["mask"]["start"].append((trigger.signal, TRIGGERS.MASK))
+controller.state_calls["mask"]["end"].append((trigger.signal, TRIGGERS.STATEEND))
 
 
 # Set up CTRL + C handling for graceful exit with logs

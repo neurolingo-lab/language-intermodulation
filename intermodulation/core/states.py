@@ -233,11 +233,14 @@ class FlickerStimState(MarkovState):
                 else:
                     nearest = get_nearest_f(f, self.framerate)
                     if not np.isclose(nearest, f, rtol=0.0, atol=1e-1):
-                        raise ValueError(
-                            "Flicker frequency must be a multiple of 1/2 the frame rate. "
-                            f"Actual frequency: {f:0.3f}, nearest possible: {nearest:0.3f}, "
-                            f"frame rate: {self.framerate:0.3f}."
-                        )
+                        if np.isclose(1 / nearest, 1 / f, atol=1e-4):
+                            f = nearest
+                        else:
+                            raise ValueError(
+                                "Flicker frequency must be a multiple of 1/2 the frame rate. "
+                                f"Actual frequency: {f:0.3f}, nearest possible: {nearest:0.3f}, "
+                                f"frame rate: {self.framerate:0.3f}."
+                            )
                     frames_per_halfcycle = int(self.framerate / (2 * nearest))
                     nested_set(
                         fs,

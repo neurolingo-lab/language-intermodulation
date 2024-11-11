@@ -162,6 +162,30 @@ def generate_1w_states(
     return states_1word
 
 
+def add_masked_1w_states(states_1word, word_list, mask_char="+"):
+    maskdf = word_list.copy()
+    maskdf["w1"] = maskdf["w1"].apply(lambda x: mask_char * len(x))
+    states_1word["fixation"].next = "mask"
+    states_1word["mask"] = OneWordState(
+        window=states_1word["fixation"].window,
+        next="word",
+        dur=states_1word["fixation"].dur,
+        stim=OneWordStim(
+            win=states_1word["fixation"].window,
+            word1="testing",
+            text_config=TEXT_CONFIG,
+            reporting_pix=REPORT_PIX,
+            reporting_pix_size=REPORT_PIX_SIZE,
+        ),
+        word_list=maskdf,
+        frequencies={"words": {"word1": None}},
+        clock=states_1word["fixation"].clock,
+        framerate=states_1word["fixation"].framerate,
+        flicker_handler="frame_count",
+    )
+    return
+
+
 def generate_2w_states(
     rng,
     FIXATION_DURATION,
