@@ -173,4 +173,5 @@ class QueryState(imcs.FlickerStimState):
             )
         incorr_word = self.rng.choice(other_words)
         self.test_word = self.rng.choice([correct_word, incorr_word])
+        self.truth = self.test_word == correct_word
         self.stim.stim_constructor_kwargs["query"]["text"] = f"{self.test_word}?"

@@ -14,8 +14,7 @@ import intermodulation.utils
 from intermodulation.freqtag_spec import (
     WINDOW_CONFIG,
 )
-from intermodulation.generate_2w_states import generate_2w_states
-from intermodulation.utils import generate_1w_states
+from intermodulation.utils import generate_1w_states, generate_2w_states
 
 try:
     from byte_triggers import ParallelPortTrigger
@@ -40,7 +39,7 @@ LOGPATH = parent_path / "logs"
 PARALLEL_PORT = "/dev/parport0"  # Set to None if no parallel port
 
 # Stimulus parameters
-FLICKER_RATES = np.array([20.0, 30.0])  # Hz
+FLICKER_RATES = np.array([17.14286, 20.0])  # Hz
 TWOWORDS = pd.read_csv(parent_path / "two_word_stimuli.csv", index_col=0).sample(
     frac=1, random_state=rng
 )
@@ -54,19 +53,21 @@ FIXATION_DURATION = 0.5  # seconds
 WORD_DURATION = 2.0  # seconds
 QUERY_DURATION = 2.0  # seconds
 ITI_BOUNDS = [0.5, 1.5]  # seconds
-QUERY_P = 0.1  # probability of a query appearing after stimulus
+QUERY_P = 0.3333333  # probability of a query appearing after stimulus
 N_BLOCKS_2W = 3  # number of blocks of stimuli to run (each block is the full word list, permuted)
 N_BLOCKS_1W = 2  # number of blocks of stimuli to run for the one-word task
+FORCE_FR = None
 #############################################################
 #         DEBUGGING PARAMETER CHANGES HERE, IF ANY!         #
 #############################################################
-# # FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
-# # WORD_DURATION = 2.0  # seconds
+# FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
+# WORD_DURATION = 2.0  # seconds
 # TWOWORDS = TWOWORDS.head(15)
 # ONEWORDS = ONEWORDS.head(15)
-# QUERY_P = 0.5
+# QUERY_P = 1.0
 # N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 # N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
+# FORCE_FR = 100  # Force the frame rate to 100 for testing
 #############################################################
 
 # Use the psyquartz clock for platform stability
@@ -93,10 +94,12 @@ WINDOW_CONFIG["monitor"] = "propixx"
 
 # Create the window and check the frame rate. Raise an error if the frame rate is not detected.
 window = psychopy.visual.Window(**WINDOW_CONFIG)
-framerate = window.getActualFrameRate()
-if framerate is None:
-    raise ValueError("Could not determine window framerate")
-framerate = np.round(framerate)
+if FORCE_FR is not None:
+    framerate = FORCE_FR
+else:
+    framerate = window.getActualFrameRate()
+    framerate = window.getActualFrameRate()
+    framerate = np.round(framerate)
 
 # Create a trigger object for sending triggers to the parallel port, and if there's no working port
 # create a dummy trigger object that prints the value that would be sent.
@@ -193,10 +196,30 @@ psychopy.event.globalKeys.add(
     func=controller.toggle_pause,
 )
 controller.state_calls["all"] = {"end": []}
+
+expltext = psychopy.visual.TextStim(
+    window,
+    text="This experiment will begin with a dot on the screen.\n\n Stare at the dot when you see it, "
+    "and continue to stare where the dot was when words appear.\n\nSometimes these words will be "
+    "followed by a question.\n\nIf the question word was present in the last set of word(s) you just saw, "
+    "press yes, otherwise press no.",
+    anchorHoriz="center",
+    alignText="center",
+    pos=(0, 0),
+    color="white",
+    height=1.0,
+)
+expltext.draw()
+window.flip()
+
+psychopy.event.waitKeys(keyList=["4"])
+del expltext
+
+
 controller.run_experiment()
 
 # Save logs
-date = datetime.now().isoformat(timespec="minutes")
+date = datetime.now().strftime("%Y-%m-%d_%H-%M")
 logger.save(LOGPATH / f"{date}_2word_experiment.pkl")
 
 ########################################################
@@ -276,5 +299,5 @@ controller.toggle_pause()
 controller.run_experiment()
 
 # Save logs
-date = datetime.now().isoformat(timespec="minutes")
+date = datetime.now().strftime("%Y-%m-%d_%H-%M")
 logger.save(LOGPATH / f"{date}_1word_experiment.pkl")

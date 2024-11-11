@@ -288,6 +288,8 @@ def add_logging_to_controller(
         controller.add_loggable(
             query, "start", "word1", object=states[query], attribute="test_word"
         )
+        controller.add_loggable(query, "start", "truth", object=states[query], attribute="truth")
+
     elif oneword is not None:
         controller.add_loggable(
             oneword, "start", "word1", object=states[oneword].stim, attribute="word1"
@@ -358,6 +360,22 @@ def add_triggers_to_controller(
                 (TRIGGERS.STATEEND,),
             )
         )
+        if state == "pause":
+            trig = TRIGGERS.BREAK
+        elif state == iti:
+            trig = TRIGGERS.ITI
+        elif state == fixation:
+            trig = TRIGGERS.FIXATION
+        elif state == query:
+            continue
+        else:
+            continue
+        controller.state_calls[state]["start"].append(
+            (
+                trigger.signal,
+                (trig,),
+            )
+        )
 
     # Add the universal block and trial end triggers, and the pause state trigger
     controller.trial_calls.append(
@@ -419,6 +437,13 @@ def add_triggers_to_controller(
         trigger.signal(trigval)
         return
 
+    def choose_query_trigger(state, freqs, trigger):
+        if state.truth:
+            trigger.signal(TRIGGERS.QUERY.TRUE)
+        else:
+            trigger.signal(TRIGGERS.QUERY.FALSE)
+        return
+
     # Add the trigger calls to the controller for the given word state
     if twoword is not None:
         controller.state_calls[twoword]["start"].append(
@@ -432,6 +457,14 @@ def add_triggers_to_controller(
             (
                 choose_1word_trigger,
                 (states[oneword], freqs, trigger),
+            )
+        )
+
+    if query is not None:
+        controller.state_calls[query]["start"].append(
+            (
+                choose_query_trigger,
+                (states[query], freqs, trigger),
             )
         )
     return

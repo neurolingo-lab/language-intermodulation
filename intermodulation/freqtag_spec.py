@@ -62,6 +62,7 @@ LOGGABLES = {
         "word1_freq",
         "word2_freq",
         "condition",
+        "truth",
     ],
     "continuous_per_state": [
         ("words", "word1"),
@@ -93,14 +94,8 @@ TRIGGERS = AttriDict(
     EXPEND=255,
     # 20-30 are reserved for the query condition
     QUERY=dict(
-        TRUE=dict(
-            F1LEFT=20,
-            F1RIGHT=21,
-        ),
-        FALSE=dict(
-            F1LEFT=22,
-            F1RIGHT=23,
-        ),
+        TRUE=20,
+        FALSE=21,
     ),
     # 30-40 are reserved for the two-word stimulus condition
     TWOWORD=dict(
