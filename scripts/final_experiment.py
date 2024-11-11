@@ -60,14 +60,14 @@ FORCE_FR = None
 #############################################################
 #         DEBUGGING PARAMETER CHANGES HERE, IF ANY!         #
 #############################################################
-# FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
+FLICKER_RATES = np.array([5.55555555555555, 16.666666666666])  # Hz
 # WORD_DURATION = 2.0  # seconds
 # TWOWORDS = TWOWORDS.head(15)
 # ONEWORDS = ONEWORDS.head(15)
 # QUERY_P = 1.0
 # N_BLOCKS_2W = 1  # number of blocks of stimuli to run (each block is the full word list, permuted)
 # N_BLOCKS_1W = 1  # number of blocks of stimuli to run for the one-word task
-# FORCE_FR = 100  # Force the frame rate to 100 for testing
+FORCE_FR = 100  # Force the frame rate to 100 for testing
 #############################################################
 
 # Use the psyquartz clock for platform stability

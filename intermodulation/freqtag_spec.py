@@ -25,7 +25,7 @@ WINDOW_CONFIG = {
 }
 TEXT_CONFIG = {
     "font": "Cousine Nerd Font Mono",
-    "height": 0.77,
+    "height": 0.75,
     "wrapWidth": None,
     "ori": 0.0,
     "color": "white",
@@ -33,6 +33,7 @@ TEXT_CONFIG = {
     "opacity": None,
     "languageStyle": "LTR",
     "depth": 0.0,
+    "bold": True,
 }
 DOT_CONFIG = {
     "size": (0.05, 0.05),
