@@ -1,6 +1,23 @@
 from attridict import AttriDict
 
-from intermodulation.core.utils import nested_iteritems
+
+def nested_iteritems(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for subk, v in nested_iteritems(v):
+                yield (k, *subk), v
+        else:
+            yield (k,), v
+
+
+def nested_deepkeys(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for subk in nested_deepkeys(v):
+                yield (k, *subk)
+        else:
+            yield (k,)
+
 
 # Detailed display parameters for experiment
 WORD_SEP: float = 0.3  # word separation in degrees
@@ -128,3 +145,32 @@ TRIGGERS = AttriDict(
     MASK=50,
 )
 LUT_TRIGGERS = {v: k for k, v in nested_iteritems(TRIGGERS)}
+for i in range(1, 256):
+    if i not in LUT_TRIGGERS:
+        LUT_TRIGGERS[i] = ("INVALID",)
+
+VALID_TRANS = (
+    *(
+        ("/".join(k), "STATEEND")
+        for k in nested_deepkeys(TRIGGERS)
+        if k[0] in ("QUERY", "TWOWORD", "ONEWORD", "ITI", "FIXATION", "BREAK", "MASK")
+    ),
+    ("STATEEND", "TRIALEND"),
+    *(
+        ("STATEEND", "/".join(k))
+        for k in nested_deepkeys(TRIGGERS)
+        if k[0] in ("QUERY", "TWOWORD", "ONEWORD", "ITI", "BREAK", "MASK", "FIXATION")
+    ),
+    ("TRIALEND", "BLOCKEND"),
+    ("TRIALEND", "FIXATION"),
+    ("TRIALEND", "BREAK"),
+    ("BLOCKEND", "FIXATION"),
+    ("BLOCKEND", "BREAK"),
+    *(
+        (t, "BREAK")
+        for t in (
+            "BLOCKEND",
+            "TRIALEND",
+        )
+    ),
+)

@@ -50,6 +50,7 @@ ONEWORDS = pd.read_csv(parent_path / "one_word_stimuli.csv", index_col=0).sample
 
 # Task parameters
 PAUSE_KEY = "4"
+TRIGGER_DUR = 4  # milliseconds
 FIXATION_DURATION = 0.5  # seconds
 WORD_DURATION = 2.0  # seconds
 QUERY_DURATION = 2.0  # seconds
@@ -105,7 +106,7 @@ else:
 # Create a trigger object for sending triggers to the parallel port, and if there's no working port
 # create a dummy trigger object that prints the value that would be sent.
 try:
-    trigger = ParallelPortTrigger(PARALLEL_PORT, delay=2)
+    trigger = ParallelPortTrigger(PARALLEL_PORT, delay=TRIGGER_DUR)
 except RuntimeError:
 
     class DummyTrigger:
