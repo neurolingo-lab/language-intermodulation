@@ -10,20 +10,26 @@ from intermodulation.freqtag_spec import LUT_TRIGGERS, TRIGGERS, VALID_TRANS, ne
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--bids_root", type=str, required=True)
-    parser.add_argument("--subject_id", type=str, required=True)
-    parser.add_argument("--session_id", type=str, required=True)
+    parser.add_argument("--subject", type=str, required=True)
+    parser.add_argument("--session", type=str, required=True)
     parser.add_argument("--task", type=str, default="syntaxIM")
-    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Fully overwrite existing events. If not set, then old events will be written "
+        "to a file ending in annotbackup.fif in the same directory as the original file.",
+    )
     parser.add_argument("--stim_channel", type=str, default="STI102")
     parser.add_argument("--tmpfix", action="store_true")
     args = parser.parse_args()
 
     bids_path = mne_bids.BIDSPath(
-        subject=args.subject_id,
-        session=args.session_id,
+        subject=args.subject,
+        session=args.session,
         task=args.task,
         root=args.bids_root,
         datatype="meg",
+        split="01",
     )
 
     raw = mne.io.read_raw_fif(bids_path.copy().update(suffix="meg", extension=".fif", split="01"))
@@ -69,41 +75,59 @@ if __name__ == "__main__":
 
     goodevs.reset_index(inplace=True, drop=True)
     records = []
+    metadata = []
     offset = raw.first_samp / raw.info["sfreq"]
     for row in goodevs.itertuples():
         if row.label2 in ("STATEEND", "TRIALEND", "BLOCKEND"):
             continue
         if goodevs.at[row.Index + 1, "label2"] in ("STATEEND", "TRIALEND", "BLOCKEND"):
-            end = goodevs.at[row.Index + 1, "sample"] / raw.info["sfreq"] + offset
+            end = goodevs.at[row.Index + 1, "sample"] / raw.info["sfreq"] - offset
         else:
             if args.tmpfix and row.label2.split("/")[0] == "ONEWORD":
-                end = goodevs.at[row.Index + 1, "sample"] / raw.info["sfreq"] + offset
+                end = goodevs.at[row.Index + 1, "sample"] / raw.info["sfreq"] - offset
             else:
                 raise ValueError(
                     f"Expected end of trial at index {row.Index + 1}, found "
                     f"{goodevs.at[row.Index + 1, 'label2']}"
                 )
-        onset = row.sample / raw.info["sfreq"] + offset
-        records.append(
+        onset = row.sample / raw.info["sfreq"] - offset
+        records.append([row.sample - raw.first_samp, 0, row.v2])
+        labels = row.label2.split("/")
+        complexstate = len(labels) > 1
+        stimstate = len(labels) > 2
+        metadata.append(
             {
                 "onset": onset,
                 "duration": end - onset,
-                "trial_type": row.label2,
-                "value": row.v2,
-                "sample": row.sample,
-                "channel": args.stim_channel,
+                "label": row.label2,
+                "orig_samp": row.sample,
+                "state": labels[0],
+                "cond": labels[1] if complexstate else None,
+                "freq": labels[2] if stimstate else None,
             }
         )
-    bidsevs = pd.DataFrame.from_records(records)
-    bidevpath = bids_path.copy().update(suffix="events", extension=".tsv")
-    if not len(bidevpath.match()) == 0:
-        oldev = pd.read_csv(bidevpath.fpath, sep="\t")
-        catevs = pd.concat([oldev, bidsevs], axis=0).reset_index(drop=True)
-        if catevs.duplicated().any():
-            if not args.overwrite:
-                raise ValueError("Duplicate events found after concatenation!")
-            else:
-                catevs.drop_duplicates(inplace=True)
-        catevs.sort_values("onset", inplace=True)
-
-    bidsevs.to_csv(bidevpath.fpath, sep="\t", index=False)
+    # bidsevs = pd.DataFrame.from_records(records)
+    bidsevs = np.array(records)
+    ev_meta = pd.DataFrame.from_records(metadata)
+    if not args.overwrite:
+        raw.annotations.save(
+            bids_path.copy().update(suffix="annotbackup", extension=".fif", check=False).fpath,
+        )
+    mne_bids.write_raw_bids(
+        raw,
+        bids_path,
+        bidsevs,
+        event_id={v: k for k, v in lut_triggers.items()},
+        event_metadata=ev_meta,
+        extra_columns_descriptions={
+            "onset": "onset time of state",
+            "duration": "duration of state",
+            "label": "label sent to MNE for that state",
+            "orig_samp": "original sample number before applying first sample correction",
+            "state": "top-level identity of the state",
+            "cond": "sub-condition of the state, such as type of stimulus or query ground truth",
+            "freq": "frequency of the stimulus",
+        },
+        overwrite=True,
+        format="FIF",
+    )
