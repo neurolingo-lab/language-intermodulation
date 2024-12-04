@@ -186,7 +186,7 @@ def add_masked_1w_states(states_1word, word_list, mask_char="+"):
     return
 
 
-def generate_2w_states(
+def generate_discrete_states(
     rng,
     FIXATION_DURATION,
     WORD_DURATION,

@@ -15,7 +15,7 @@ from intermodulation.freqtag_spec import (
     TRIGGERS,
     WINDOW_CONFIG,
 )
-from intermodulation.utils import generate_1w_states, generate_2w_states
+from intermodulation.utils import generate_1w_states, generate_discrete_states
 
 try:
     from byte_triggers import ParallelPortTrigger
@@ -26,7 +26,7 @@ import intermodulation.core as core
 import intermodulation.freqtag_spec as spec
 from intermodulation.core.events import ExperimentLog
 
-parent_path = Path(core.__file__).parents[2]
+parent_path = Path(core.__file__).parents[3]
 
 #############################################################
 #                   EXPERIMENT_PARAMETERS                   #
@@ -128,7 +128,7 @@ logger = ExperimentLog(loggables=spec.LOGGABLES)
 # Setup of experiment components: Final stimulus df with randomly assigned flicker rates,
 # states for the 2-word task, and the controller
 wordsdf = intermodulation.utils.assign_frequencies_to_words(TWOWORDS, *FLICKER_RATES, rng)
-states_2word = generate_2w_states(
+states_2word = generate_discrete_states(
     rng,
     FIXATION_DURATION,
     WORD_DURATION,
