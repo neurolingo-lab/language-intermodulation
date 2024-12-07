@@ -5,8 +5,8 @@ from typing import Hashable
 
 import numpy as np
 import pandas as pd
+import psystate.states as ps
 
-import intermodulation.core.states as imcs
 import intermodulation.stimuli as ims
 
 DOT_DEFAULT = {
@@ -27,7 +27,7 @@ REPORT_PIX_VALS = {
 
 
 @dataclass
-class TwoWordState(imcs.FlickerStimState):
+class TwoWordState(ps.FrameFlickerStimState):
     stim: ims.TwoWordStim = field(kw_only=True)
     word_list: pd.DataFrame = field(kw_only=True)
 
@@ -37,10 +37,10 @@ class TwoWordState(imcs.FlickerStimState):
         # Ignore the initial passed words and use the list
         words = self.word_list.iloc[self.pair_idx]
         self.phrase_cond = words["condition"]
-        self.stim.word1 = words["w1"]
-        self.stim.word2 = words["w2"]
-        self.frequencies["words"]["word1"] = words["w1_freq"]
-        self.frequencies["words"]["word2"] = words["w2_freq"]
+        self.word1 = words["w1"]
+        self.word2 = words["w2"]
+        self.frequencies["word1"] = words["w1_freq"]
+        self.frequencies["word2"] = words["w2_freq"]
 
         self.stim_constructor_kwargs = {}
 
@@ -66,18 +66,18 @@ class TwoWordState(imcs.FlickerStimState):
         self.stim.word1 = words["w1"]
         self.stim.word2 = words["w2"]
 
-        self.frequencies["words"]["word1"] = words["w1_freq"]
-        self.frequencies["words"]["word2"] = words["w2_freq"]
+        self.frequencies["word1"] = words["w1_freq"]
+        self.frequencies["word2"] = words["w2_freq"]
 
         return
 
     def _set_pixreport(self, *args, **kwargs):
-        word_states = (self.stim.states["words"]["word1"], self.stim.states["words"]["word2"])
+        word_states = (self.stim.states["word1"], self.stim.states["word2"])
         self.stim.stim["reporting_pix"].fillColor = REPORT_PIX_VALS[word_states]
 
 
 @dataclass
-class OneWordState(imcs.FlickerStimState):
+class OneWordState(ps.FrameFlickerStimState):
     stim: ims.OneWordStim = field(kw_only=True)
     word_list: pd.DataFrame = field(kw_only=True)
 
@@ -115,19 +115,14 @@ class OneWordState(imcs.FlickerStimState):
 
 
 @dataclass
-class FixationState(imcs.FlickerStimState):
+class FixationState(ps.StimulusState):
     stim: ims.FixationStim = field(kw_only=True)
-    frequencies: Mapping[Hashable, Number | Mapping] = field(
-        init=False, kw_only=True, default_factory={"dot": None}.copy
-    )
 
     def __post_init__(self):
-        self.stim_constructor_kwargs = {}
-        self.frequencies = {"fixation": None}
         super().__post_init__()
 
 
-class InterTrialState(imcs.MarkovState):
+class InterTrialState(ps.MarkovState):
     def __init__(self, next, duration_bounds=(1.0, 3.0), rng=np.random.default_rng()):
         def duration_callable():
             return rng.uniform(*duration_bounds)
@@ -136,7 +131,7 @@ class InterTrialState(imcs.MarkovState):
 
 
 @dataclass
-class QueryState(imcs.FlickerStimState):
+class QueryState(ps.FrameFlickerStimState):
     stim: ims.QueryStim = field(kw_only=True)
     query_kwargs: Mapping = field(kw_only=True, default_factory=dict)
     word_list: pd.DataFrame = field(kw_only=True, default=None)

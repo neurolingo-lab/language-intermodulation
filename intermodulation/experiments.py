@@ -1,2 +1,0 @@
-class WordFreqTagging:
-    pass

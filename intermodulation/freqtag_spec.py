@@ -1,23 +1,14 @@
+from pathlib import Path
+
 from attridict import AttriDict
 
-
-def nested_iteritems(d):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            for subk, v in nested_iteritems(v):
-                yield (k, *subk), v
-        else:
-            yield (k,), v
-
-
-def nested_deepkeys(d):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            for subk in nested_deepkeys(v):
-                yield (k, *subk)
-        else:
-            yield (k,)
-
+# Parameters for the experiment itself
+TWOWORDPATH = Path(__file__).parents[1] / "two_word_stimuli_nina.csv"
+ONEWORDPATH = Path(__file__).parents[1] / "one_word_stimuli.csv"
+MINIBLOCK_LEN = 10
+N_BLOCKS = 3
+N_1W_BLOCKS = 2
+FREQUENCIES = [17.142857, 20.0]
 
 # Detailed display parameters for experiment
 WORD_SEP: float = 0.3  # word separation in degrees
@@ -32,6 +23,17 @@ REPORT_PIX_SIZE = 10
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
     "fullscr": True,
+    "winType": "pyglet",
+    "allowStencil": False,
+    "monitor": "testMonitor",
+    "color": [-1, -1, -1],
+    "colorSpace": "rgb",
+    "units": "deg",
+    "checkTiming": False,
+}
+DEBUG_WINDOW_CONFIG = {
+    "screen": 0,  # 0 is the primary monitor
+    "fullscr": False,
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
@@ -144,6 +146,26 @@ TRIGGERS = AttriDict(
     ),
     MASK=50,
 )
+
+
+def nested_iteritems(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for subk, v in nested_iteritems(v):
+                yield (k, *subk), v
+        else:
+            yield (k,), v
+
+
+def nested_deepkeys(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for subk in nested_deepkeys(v):
+                yield (k, *subk)
+        else:
+            yield (k,)
+
+
 LUT_TRIGGERS = {v: k for k, v in nested_iteritems(TRIGGERS)}
 for i in range(1, 256):
     if i not in LUT_TRIGGERS:

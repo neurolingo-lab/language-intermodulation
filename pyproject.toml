@@ -24,6 +24,7 @@ dependencies = [
     "psychopy==2024.*",
     "psyquartz",
     "lazy-loader",
+    "mnemonic",
 ]
 
 [project.optional-dependencies]
