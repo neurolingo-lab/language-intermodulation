@@ -2,7 +2,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
-import pandas as pd
 import psychopy.tools.monitorunittools as mut
 import psychopy.visual.rect
 import psychopy.visual.shape
@@ -170,7 +169,6 @@ class QueryStim(pst.StatefulStim):
     def __init__(
         self,
         win: psychopy.visual.Window,
-        rng: np.random.Generator = np.random.default_rng(),
         query_config: Mapping = TEXT_CONFIG,
     ):
         stim_kwargs = {
@@ -182,7 +180,4 @@ class QueryStim(pst.StatefulStim):
                 **query_config,
             }
         }
-        self.word_list = pd.DataFrame()
-        self.stim_idx = None
-        self.rng = rng
         super().__init__(win, {"query": psychopy.visual.TextStim}, stim_kwargs)

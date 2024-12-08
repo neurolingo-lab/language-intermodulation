@@ -1,338 +1,211 @@
 from collections.abc import Sequence
-from typing import Hashable
+from pathlib import Path
+from typing import Hashable, Literal, Mapping
 
 import numpy as np
 import pandas as pd
+import psystate.controller as psycon
 from byte_triggers import ParallelPortTrigger
 
-import intermodulation.core.controller as core
+import intermodulation.freqtag_spec as spec
 from intermodulation.freqtag_spec import (
-    DOT_CONFIG,
-    REPORT_PIX,
-    REPORT_PIX_SIZE,
-    TEXT_CONFIG,
     TRIGGERS,
-    WORD_SEP,
 )
 from intermodulation.states import (
-    FixationState,
-    InterTrialState,
-    OneWordState,
     QueryState,
-    TwoWordState,
+    TwoWordMiniblockState,
 )
-from intermodulation.stimuli import FixationStim, OneWordStim, QueryStim, TwoWordStim
 
 
-def flip_state(t, target_t, keymask, framerate):
-    close_enough = np.isclose(t, target_t, rtol=0.0, atol=1 / (2 * framerate) - 1e-6)
-    past_t = t > target_t
-    goodclose = (close_enough & keymask) | (past_t & keymask)
-    # breakpoint()
-    if np.any(goodclose):
-        ts_idx = np.argwhere(goodclose).flatten()[-1]
-        keymask[ts_idx] = False
-        return True, keymask
-    return False, keymask
-
-
-# def infer_states(events, triggers, first_samp=0):
-#     """
-#     Infer the state start/end times from a set of events produced by `mne.find_events` and a
-#     set of known trigger values.
-
-#     Parameters
-#     ----------
-#     events : np.ndarray
-#         N x 3 array of events produced by `mne.find_events`.
-#     triggers : AttriDict
-#         A nested AttriDict of different trigger types and their corresponding values.
-#     first_samp : int
-#         The index of the first sample in the data. Usually taken from mne.Raw.first_samp. Default 0
-#     """
-#     lut = {v: k for k, v in nested_iteritems(triggers)}
-
-#     endmask = events[:, 2] == triggers.STATEEND
-#     starttimes = events[~endmask]
-#     endtimes = events[endmask]
-#     records = []
-#     for tidx, prev, trig in starttimes:
-#         if trig in lut:
-#             stidx = np.searchsorted(endtimes[:, 0], tidx)
-#             next_end = np.argwhere(endtimes[:, 2][stidx:] == triggers.STATEEND).flatten()[0]
-
-
-def assign_frequencies_to_words(wordsdf, freq1: float, freq2: float, rng: np.random.Generator):
+def update_tracker_miniblock(q_track: Mapping, state: TwoWordMiniblockState):
     """
-    Counterbalanced assignment of one of two frequencies to each word in a DataFrame, within
-    condition. Returns a new DataFrame with the columns "w1_freq" and "w2_freq" added. Each pair
-    will have one of each frequency.
+    Update the query tracker (see `set_next_query_miniblock`) with the current miniblock
+    number and set of words.
 
     Parameters
     ----------
-    wordsdf : pd.DataFrame
-        Dataframe of word pairs to assign frequencies to.
-    freq1 : float
-        Value to assign to half of the words.
-    freq2 : float
-        Value to assign to the other half of the words.
-    rng : np.random.Generator
-        RNG object to use
+    q_track : Mapping
+        Dictionary of query tracking information. See `set_next_query_miniblock` for details.
+    state : TwoWordMiniblockState
+        The miniblock stimulus state that should be used to update the query tracker.
     """
-    outdf = wordsdf.copy()
-    outdf["w1_freq"] = np.nan
-    if "w2" in wordsdf.columns:
-        outdf["w2_freq"] = np.nan
-    for condition in wordsdf["condition"].unique():
-        condidx = wordsdf.query("condition == @condition").index
-        mask = np.zeros(len(condidx), dtype=bool)
-        f1_choices = rng.choice(np.arange(len(condidx)), size=len(condidx) // 2, replace=False)
-        mask[f1_choices] = True
-        w1_f = np.where(mask, freq1, freq2)
-        outdf.loc[condidx, "w1_freq"] = w1_f
-        if "w2" in wordsdf.columns:
-            w2_f = np.where(mask, freq2, freq1)
-            outdf.loc[condidx, "w2_freq"] = w2_f
-
-    return outdf
+    if q_track["miniblock"] != state.miniblock_idx:
+        q_track["miniblock"] = state.miniblock_idx
+        q_track["last_words"] = state.wordset
+    return
 
 
-def generate_1w_states(
-    rng, FIXATION_DURATION, WORD_DURATION, ITI_BOUNDS, clock, window, framerate, worddf
+def next_state_query_miniblock(
+    q_track: Mapping,
+    nexts: Sequence[Hashable] = ["query", "iti"],
+    query_id: Hashable = "query",
+    iti_id="iti",
 ):
-    states_1word = {
-        "pause": OneWordState(
-            next="fixation",
-            dur=np.inf,
-            window=window,
-            stim=OneWordStim(
-                win=window,
-                word1="Time for a break!",
-                text_config=TEXT_CONFIG,
-                reporting_pix=REPORT_PIX,
-                reporting_pix_size=REPORT_PIX_SIZE,
-            ),
-            word_list=pd.DataFrame(
-                {
-                    "w1": ["Time for a break!"],
-                    "w2": [
-                        None,
-                    ],
-                    "w1_freq": [0],
-                    "condition": ["pause"],
-                }
-            ),
-            frequencies={"words": {"word1": None}},
-            clock=clock,
-            framerate=framerate,
-            flicker_handler="frame_count",
-        ),
-        "intertrial": InterTrialState(
-            next="fixation",
-            duration_bounds=ITI_BOUNDS,
-            rng=rng,
-        ),
-        "fixation": FixationState(
-            next="word",
-            dur=FIXATION_DURATION,
-            stim=FixationStim(win=window, dot_config=DOT_CONFIG),
-            window=window,
-            clock=clock,
-            framerate=framerate,
-        ),
-        "word": OneWordState(
-            next="intertrial",
-            dur=WORD_DURATION,
-            window=window,
-            stim=OneWordStim(
-                win=window,
-                word1="experiment",
-                text_config=TEXT_CONFIG,
-                reporting_pix=REPORT_PIX,
-                reporting_pix_size=REPORT_PIX_SIZE,
-            ),
-            word_list=worddf,
-            frequencies={"words": {"word1": None}},
-            clock=clock,
-            framerate=framerate,
-            flicker_handler="frame_count",
-        ),
-    }
+    """
+    Set whether the next state should be a query or the ITI state based on the current miniblock
 
-    return states_1word
+    Parameters
+    ----------
+    q_track : Mapping
+        Tracking dictionary for the query states. See `set_next_query_miniblock` for details.
+    nexts : Sequence[Hashable], optional
+        A sequence of the next possible state IDs, by default ["query", "iti"]
+    query_id : Hashable, optional
+        The ID of the query state, to be returned if we haven't reached our target number of
+        queries, by default "query"
+    iti_id : str, optional
+        The ID of the ITI state, to be returned if we have queried all categories, by default "iti"
+    """
+    if (q_track["query_idx"] + 1) % (len(q_track["categories"])) == 0:
+        return nexts.index(iti_id)
+    return nexts.index(query_id)
 
 
-def add_masked_1w_states(states_1word, word_list, mask_char="+"):
-    maskdf = word_list.copy()
-    maskdf["w1"] = maskdf["w1"].apply(lambda x: mask_char * len(x))
-    states_1word["fixation"].next = "mask"
-    states_1word["mask"] = OneWordState(
-        window=states_1word["fixation"].window,
-        next="word",
-        dur=states_1word["fixation"].dur,
-        stim=OneWordStim(
-            win=states_1word["fixation"].window,
-            word1="testing",
-            text_config=TEXT_CONFIG,
-            reporting_pix=REPORT_PIX,
-            reporting_pix_size=REPORT_PIX_SIZE,
-        ),
-        word_list=maskdf,
-        frequencies={"words": {"word1": None}},
-        clock=states_1word["fixation"].clock,
-        framerate=states_1word["fixation"].framerate,
-        flicker_handler="frame_count",
+def set_next_query_miniblock(
+    q_track: Mapping,
+    state: QueryState,
+    allwords: pd.DataFrame,
+    rng: np.random.RandomState,
+):
+    """
+    Function to get the next query following the miniblock for the miniblock task. Will use the
+    query tracker to keep track of which categories are desired (see q_track below), and set the
+    test word and truth value in the passed QueryState object.
+
+    Parameters
+    ----------
+    q_track : Mapping
+        Dictionary storing the information about queries between state runs. Must have keys
+        'query_idx', 'query_order', 'categories', 'last_words', 'candidates', 'miniblock'.
+         - 'query_idx' is an integer tracking the number of queries so far
+         - 'query_order' is a list of indices defining the order of categories to query, permuted by
+            this function once all categories have been used
+         - 'categories' is a list of 2-tuples defining the categories to query, which are
+            combinations of 'word' or 'non-word' and 'seen' or 'unseen'.
+         - 'last_words' is a DataFrame storing the last words presented in the previous miniblock,
+            and should be updated after each miniblock is completed by another function.
+         - 'candidates' is a dictionary storing the candidate words for each category, sampled from
+            the 'allwords' DataFrame
+         - 'miniblock' is an integer tracking the current miniblock number
+    state : QueryState
+        The query state that should be updated with the next test word
+    allwords : pd.DataFrame
+        All words used in the current task, to define the 'seen'/'unseen' status of the words
+    rng : np.random.RandomState
+        Random generator to use
+    """
+    # Store some variables locally for easier access
+    n_queries = len(q_track["categories"])
+    qidx = q_track["query_idx"] % n_queries
+    catnum = q_track["query_order"][qidx]
+    if qidx == 0:  # If we have queried all categories, permute the order again and get new cands
+        q_track["query_order"] = rng.permutation(n_queries)
+        candidates = {}
+        for cat in q_track["categories"]:
+            # Set the mask of words that meet our word/non-word choices
+            if cat[0] == "word":
+                wordmask = allwords["cond"] == cat[0]
+            else:
+                wordmask = allwords["cond"] != "word"
+            # Set the columns containing our last seen words. If we have a second word, use it
+            columns = ["w1"]
+            if "w2" in q_track["last_words"].columns:
+                columns.append("w2")
+            # Set the mask of words that were seen or unseen in the last miniblock
+            seenmask = allwords["word"].isin(q_track["last_words"][columns].values.flat)
+            if cat[1] == "unseen":
+                seenmask = ~seenmask
+            # Sample the candidates for this category
+            candidates[cat] = allwords[wordmask & seenmask].copy().sample(frac=1, random_state=rng)
+        q_track["candidates"] = candidates  # Store the candidates for the next queries
+    qcat = q_track["categories"][catnum]
+    # Set the next word to be tested and whether the correct response is True (seen) or False
+    state.test_word = q_track["candidates"][qcat].sample(random_state=rng)["word"].values[0]
+    seen = qcat[1]
+    state.truth = True if seen == "seen" else False
+
+    q_track["query_idx"] += 1
+    return
+
+
+def assign_miniblock_freqs(
+    task: Literal["twoword", "oneword"],
+    rng: np.random.Generator,
+    df: pd.DataFrame,
+    miniblock_len: int,
+    freqs: Sequence[float],
+) -> pd.DataFrame:
+    df = df.copy()
+    if task not in ["twoword", "oneword"]:
+        raise ValueError("task must be either 'twoword' or 'oneword'.")
+    n_mini = len(df) / miniblock_len  # Number of mini-blocks
+    if n_mini % 1 != 0:  # make sure we're not dropping stimuli
+        raise ValueError("Number of mini-blocks must be an integer. Miniblock length is wrong.")
+    else:
+        n_mini = int(n_mini)
+    freqidxs = np.concat((np.zeros(n_mini // 2), np.ones(n_mini // 2)))  # Balance number F1/F2
+    miniblock_nums = np.arange(n_mini)
+    rng.shuffle(freqidxs)  # Randomize order
+    freqidxs = np.repeat(freqidxs, miniblock_len).reshape(-1, 1)
+    miniblock_nums = np.repeat(miniblock_nums, miniblock_len).reshape(-1, 1)
+    tilefreqs = np.tile(spec.FREQUENCIES, len(freqidxs)).reshape(-1, 2)
+    freqs = np.where(freqidxs == 0, tilefreqs, tilefreqs[:, ::-1])
+    if task == "twoword":
+        df["w1_freq"] = freqs[:, 0]
+        df["w2_freq"] = freqs[:, 1]
+    else:
+        df["w1_freq"] = freqs[:, 0]
+    df["miniblock"] = miniblock_nums
+
+    # Check that the frequencies are balanced within each miniblock
+    assert all(df["w1_freq"].value_counts() == len(df) / 2)
+    twoword_minis = [
+        df.query(f"miniblock == {mini}") for mini in range(int(len(df) / spec.MINIBLOCK_LEN))
+    ]
+    assert all([all(minib["w1_freq"] == minib.iloc[0]["w1_freq"]) for minib in twoword_minis])
+    if task == "twoword":
+        assert all(df["w2_freq"].value_counts() == len(df) / 2)
+        assert all([all(minib["w2_freq"] == minib.iloc[0]["w2_freq"]) for minib in twoword_minis])
+    return df
+
+
+def load_prep_words(
+    path_1w: str | Path,
+    path_2w: str | Path,
+    rng: np.random.Generator,
+    miniblock_len: int,
+    freqs: Sequence[float],
+) -> pd.DataFrame:
+    # Prepare word stimuli by first shuffling, then assigning frequencies
+    twowords = pd.read_csv(path_2w, index_col=0)
+    twowords = twowords.sample(frac=1, random_state=rng)
+    twowords = assign_miniblock_freqs("twoword", rng, twowords, miniblock_len, freqs)
+    onewords = pd.read_csv(path_1w, index_col=0)
+    onewords = onewords.sample(frac=1, random_state=rng)
+    onewords = assign_miniblock_freqs("oneword", rng, onewords, miniblock_len, freqs)
+
+    # Generate a list of all used words together with their categories, for the query task
+    all_2w = pd.melt(
+        twowords,
+        id_vars=["w1_type", "w2_type"],
+        value_vars=["w1", "w2"],
+        var_name="position",
+        value_name="word",
     )
-    return
-
-
-def generate_discrete_states(
-    rng,
-    FIXATION_DURATION,
-    WORD_DURATION,
-    QUERY_DURATION,
-    ITI_BOUNDS,
-    QUERY_P,
-    clock,
-    window,
-    framerate,
-    wordsdf,
-):
-    states_2word = {
-        "pause": OneWordState(
-            next="fixation",
-            dur=np.inf,
-            window=window,
-            stim=OneWordStim(
-                win=window,
-                word1="Time for a break!",
-                text_config=TEXT_CONFIG,
-                reporting_pix=REPORT_PIX,
-                reporting_pix_size=REPORT_PIX_SIZE,
-            ),
-            word_list=pd.DataFrame(
-                {
-                    "w1": ["Time for a break!"],
-                    "w2": [
-                        None,
-                    ],
-                    "w1_freq": [0],
-                    "condition": ["pause"],
-                }
-            ),
-            frequencies={"words": {"word1": None}},
-            clock=clock,
-            framerate=framerate,
-            flicker_handler="frame_count",
-        ),
-        "intertrial": InterTrialState(
-            next="fixation",
-            duration_bounds=ITI_BOUNDS,
-            rng=rng,
-        ),
-        "fixation": FixationState(
-            next="words",
-            dur=FIXATION_DURATION,
-            stim=FixationStim(win=window, dot_config=DOT_CONFIG),
-            window=window,
-            clock=clock,
-            framerate=framerate,
-        ),
-        "query": QueryState(
-            next="intertrial",
-            dur=QUERY_DURATION,
-            stim=QueryStim(win=window, rng=rng, query_config=TEXT_CONFIG),
-            window=window,
-            clock=clock,
-            framerate=framerate,
-            rng=rng,
-        ),
-        "words": TwoWordState(
-            next=["query", "intertrial"],
-            transition=lambda: rng.choice([0, 1], p=[QUERY_P, 1 - QUERY_P]),
-            dur=WORD_DURATION,
-            window=window,
-            stim=TwoWordStim(
-                win=window,
-                word1="experiment",
-                word2="start",
-                separation=WORD_SEP,
-                fixation_dot=True,
-                reporting_pix=REPORT_PIX,
-                reporting_pix_size=REPORT_PIX_SIZE,
-                text_config=TEXT_CONFIG,
-                dot_config=DOT_CONFIG,
-            ),
-            word_list=wordsdf,
-            frequencies={"words": {"word1": None, "word2": None}},
-            clock=clock,
-            framerate=framerate,
-            flicker_handler="frame_count",
-        ),
-    }
-
-    return states_2word
-
-
-def add_logging_to_controller(
-    controller: core.ExperimentController,
-    states: dict,
-    query: Hashable | None = None,
-    twoword: Hashable | None = None,
-    oneword: Hashable | None = None,
-):
-    if twoword is None and oneword is None:
-        raise ValueError("At least one of twoword or oneword must be provided.")
-    elif twoword is not None and oneword is not None:
-        raise ValueError("Only one of twoword or oneword can be provided.")
-    if twoword is not None:
-        controller.add_loggable(
-            twoword, "start", "word1", object=states[twoword].stim, attribute="word1"
-        )
-        controller.add_loggable(
-            twoword, "start", "word2", object=states[twoword].stim, attribute="word2"
-        )
-        controller.add_loggable(
-            twoword,
-            "start",
-            "word1_freq",
-            object=states[twoword],
-            attribute=("frequencies", "words", "word1"),
-        )
-        controller.add_loggable(
-            twoword,
-            "start",
-            "word2_freq",
-            object=states[twoword],
-            attribute=("frequencies", "words", "word2"),
-        )
-        controller.add_loggable(
-            twoword, "start", "condition", object=states[twoword], attribute="phrase_cond"
-        )
-        controller.add_loggable(
-            query, "start", "word1", object=states[query], attribute="test_word"
-        )
-        controller.add_loggable(query, "start", "truth", object=states[query], attribute="truth")
-
-    elif oneword is not None:
-        controller.add_loggable(
-            oneword, "start", "word1", object=states[oneword].stim, attribute="word1"
-        )
-        controller.add_loggable(
-            oneword,
-            "start",
-            "word1_freq",
-            object=states[oneword],
-            attribute=("frequencies", "words", "word1"),
-        )
-        controller.add_loggable(
-            oneword, "start", "condition", object=states[oneword], attribute="word_cond"
-        )
-    return
+    all_2w["cond"] = all_2w["w1_type"].where(all_2w["position"] == "w1", all_2w["w2_type"])
+    all_2w = all_2w[["word", "cond"]]
+    allwords = pd.concat(
+        [
+            all_2w,
+            onewords[["w1", "condition"]].rename(columns={"w1": "word", "condition": "cond"}),
+        ],
+        ignore_index=True,
+    ).drop_duplicates()
+    return onewords, twowords, allwords
 
 
 def add_triggers_to_controller(
-    controller: core.ExperimentController,
+    controller: psycon.ExperimentController,
     trigger: ParallelPortTrigger | None,
     freqs: Sequence,
     states: dict,

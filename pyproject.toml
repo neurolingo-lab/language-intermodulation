@@ -25,6 +25,7 @@ dependencies = [
     "psyquartz",
     "lazy-loader",
     "mnemonic",
+    "byte-triggers",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,8 @@ analysis = [
     "ipython",
     "statsmodels",
     "mne",
+    "mne-bids",
+    "mne-bids-pipeline",
 ]
 testing = [
     "pytest",

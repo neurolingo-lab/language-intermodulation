@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from attridict import AttriDict
 
@@ -9,8 +10,34 @@ MINIBLOCK_LEN = 10
 N_BLOCKS = 3
 N_1W_BLOCKS = 2
 FREQUENCIES = [17.142857, 20.0]
+WORD_DUR = 2.0
+ITI_BOUNDS = [1.0, 3.0]
+FIXATION_DUR = 0.5
+
+# Debug parameters
+debug = SimpleNamespace(
+    N_BLOCKS=1,
+    FREQUENCIES=[16.5, 20.625],
+    WORD_DUR=1.0,
+    ITI_BOUNDS=[0.5, 1.0],
+    FIXATION_DUR=0.25,
+    FRAMERATE=165,
+    FULLSCR=False,
+    WINDOW_CONFIG={
+        "screen": 0,  # 0 is the primary monitor
+        "fullscr": False,
+        "winType": "pyglet",
+        "allowStencil": False,
+        "monitor": "testMonitor",
+        "color": [-1, -1, -1],
+        "colorSpace": "rgb",
+        "units": "deg",
+        "checkTiming": False,
+    },
+)
 
 # Detailed display parameters for experiment
+FULLSCR = True
 WORD_SEP: float = 0.3  # word separation in degrees
 
 DISPLAY_RES = (1280, 720)
@@ -23,17 +50,6 @@ REPORT_PIX_SIZE = 10
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
     "fullscr": True,
-    "winType": "pyglet",
-    "allowStencil": False,
-    "monitor": "testMonitor",
-    "color": [-1, -1, -1],
-    "colorSpace": "rgb",
-    "units": "deg",
-    "checkTiming": False,
-}
-DEBUG_WINDOW_CONFIG = {
-    "screen": 0,  # 0 is the primary monitor
-    "fullscr": False,
     "winType": "pyglet",
     "allowStencil": False,
     "monitor": "testMonitor",
@@ -62,33 +78,6 @@ DOT_CONFIG = {
     "lineColor": "white",
     "fillColor": "white",
     "interpolate": True,
-}
-
-LOGGABLES = {
-    "per_state": [
-        "state_number",
-        "state",
-        "next_state",
-        "state_start",
-        "target_end",
-        "state_end",
-        "trial_number",
-        "block_number",
-        "block_trial",
-        "trial_end",
-        "block_end",
-        "word1",
-        "word2",
-        "word1_freq",
-        "word2_freq",
-        "condition",
-        "truth",
-    ],
-    "continuous_per_state": [
-        ("words", "word1"),
-        ("words", "word2"),
-        "reporting_pix",
-    ],
 }
 
 # Trigger codes for the experiment to send via the parallel port

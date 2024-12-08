@@ -1,11 +1,12 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from numbers import Number
-from typing import Hashable
+from functools import partial
 
 import numpy as np
 import pandas as pd
+import psystate.events as pe
 import psystate.states as ps
+from byte_triggers._base import BaseTrigger
 
 import intermodulation.stimuli as ims
 
@@ -27,11 +28,43 @@ REPORT_PIX_VALS = {
 
 
 @dataclass
-class TwoWordState(ps.FrameFlickerStimState):
+class StartStopTriggerLogMixin:
+    trigger: BaseTrigger | None = field(kw_only=True, default=None)
+    trigger_val: int | None = field(kw_only=True, default=None)
+
+    def attach_trigger(self):
+        if self.trigger is not None:
+            if not isinstance(self.trigger_val, int):
+                raise ValueError("Must provide an integer trigger value with a trigger")
+            itemclass = partial(
+                pe.TriggerTimeLogItem, trigger=self.trigger, value=self.trigger_val
+            )
+        else:
+            itemclass = pe.TimeLogItem
+        self.loggables = pe.Loggables(
+            start=[
+                itemclass(
+                    name="start",
+                    unique=True,
+                )
+            ],
+            end=[
+                pe.TimeLogItem(
+                    name="end",
+                    unique=True,
+                ),
+            ],
+        )
+
+
+@dataclass
+class TwoWordState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
     stim: ims.TwoWordStim = field(kw_only=True)
     word_list: pd.DataFrame = field(kw_only=True)
 
     def __post_init__(self):
+        super().attach_trigger()
+        super().__post_init__()
         self.pair_idx = 0
 
         # Ignore the initial passed words and use the list
@@ -41,21 +74,10 @@ class TwoWordState(ps.FrameFlickerStimState):
         self.word2 = words["w2"]
         self.frequencies["word1"] = words["w1_freq"]
         self.frequencies["word2"] = words["w2_freq"]
-
-        self.stim_constructor_kwargs = {}
-
-        super().__post_init__()
         if self.stim.reporting_pix:
             self.update_calls.append(self._set_pixreport)
-        # Debug calls
-        # self.start_calls.append((lambda t: print(self.pair_idx),))
-        # self.end_calls.append((lambda t: print(self.pair_idx),))
 
-    def update_words(self, query_state=None):
-        if query_state is not None and isinstance(query_state, QueryState):
-            query_state.word_list = self.word_list
-            query_state.stim_idx = int(self.pair_idx)
-
+    def update_words(self):
         if self.pair_idx == (len(self.word_list) - 1):
             self.pair_idx = 0
         else:
@@ -77,11 +99,86 @@ class TwoWordState(ps.FrameFlickerStimState):
 
 
 @dataclass
-class OneWordState(ps.FrameFlickerStimState):
+class TwoWordMiniblockState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
+    stim: ims.TwoWordStim = field(kw_only=True)
+    stim_dur: float = field(kw_only=True)
+    word_list: pd.DataFrame = field(kw_only=True)
+
+    def __post_init__(self):
+        super().attach_trigger()
+        super().__post_init__()
+        self.miniblock_idx = 0
+        self.wordset_idx = 0
+        self.wordframes = int(np.round(self.stim_dur / (1 / self.framerate)))
+
+        # Ignore the initial passed words and use the list
+        self.wordset = self.word_list.query("miniblock == 0")
+        self._init_miniblock()
+        self.update_calls.insert(1, self.check_word_update)
+        self.end_calls.append(self._inc_miniblock)
+        if self.stim.reporting_pix:
+            self.update_calls.append(self._set_pixreport)
+
+    def check_word_update(self):
+        if self.frame_num % self.wordframes == 0 and self.frame_num > 0:
+            self._inc_wordidx()
+            self.word1 = self.wordset.iloc[self.wordset_idx]["w1"]
+            self.word2 = self.wordset.iloc[self.wordset_idx]["w2"]
+            changed = self.stim.update_stim({})
+            if changed is not None:
+                changed = [(*v, self.frame_num) for v in changed]
+                self._update_log.extend(changed)
+
+    @property
+    def word1(self):
+        return self.stim.word1
+
+    @word1.setter
+    def word1(self, value):
+        self.stim.word1 = value
+
+    @property
+    def word2(self):
+        return self.stim.word2
+
+    @word2.setter
+    def word2(self, value):
+        self.stim.word2 = value
+
+    def _inc_wordidx(self):
+        if self.wordset_idx == (len(self.wordset) - 1):
+            pass
+        else:
+            self.wordset_idx += 1
+        self.condition = self.wordset.iloc[self.wordset_idx]["condition"]
+
+    def _inc_miniblock(self):
+        self.wordset_idx = 0
+        self.miniblock_idx += 1
+        self.wordset = self.word_list.query(f"miniblock == {self.miniblock_idx}")
+        self._init_miniblock()
+
+    def _init_miniblock(self):
+        initial = self.wordset.iloc[0]
+        self.word1 = initial["w1"]
+        self.word2 = initial["w2"]
+        self.frequencies["word1"] = initial["w1_freq"]
+        self.frequencies["word2"] = initial["w2_freq"]
+        self.condition = initial["condition"]
+
+    def _set_pixreport(self, *args, **kwargs):
+        word_states = (self.stim.states["word1"], self.stim.states["word2"])
+        self.stim.stim["reporting_pix"].fillColor = REPORT_PIX_VALS[word_states]
+
+
+@dataclass
+class OneWordState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
     stim: ims.OneWordStim = field(kw_only=True)
     word_list: pd.DataFrame = field(kw_only=True)
 
     def __post_init__(self):
+        super().attach_trigger()
+        super().__post_init__()
         self.word_idx = 0
 
         # Ignore the initial passed words and use the list
@@ -92,7 +189,6 @@ class OneWordState(ps.FrameFlickerStimState):
         self.frequencies["reporting_pix"] = words["w1_freq"]
 
         self.stim_constructor_kwargs = {}
-        super().__post_init__()
 
     def update_word(self, query_state=None):
         if query_state is not None and isinstance(query_state, QueryState):
@@ -115,58 +211,52 @@ class OneWordState(ps.FrameFlickerStimState):
 
 
 @dataclass
-class FixationState(ps.StimulusState):
+class FixationState(ps.StimulusState, StartStopTriggerLogMixin):
     stim: ims.FixationStim = field(kw_only=True)
 
     def __post_init__(self):
+        super().attach_trigger()
         super().__post_init__()
-
-
-class InterTrialState(ps.MarkovState):
-    def __init__(self, next, duration_bounds=(1.0, 3.0), rng=np.random.default_rng()):
-        def duration_callable():
-            return rng.uniform(*duration_bounds)
-
-        super().__init__(next=next, dur=duration_callable)
 
 
 @dataclass
-class QueryState(ps.FrameFlickerStimState):
-    stim: ims.QueryStim = field(kw_only=True)
-    query_kwargs: Mapping = field(kw_only=True, default_factory=dict)
-    word_list: pd.DataFrame = field(kw_only=True, default=None)
-    stim_idx: int = field(kw_only=True, default=0)
-    rng: np.random.Generator = field(kw_only=True, default=np.random.default_rng)
-    frequencies: Mapping[Hashable, Number | Mapping] = field(
-        init=False, kw_only=True, default_factory={"query": None}.copy
-    )
+class InterTrialState(ps.MarkovState, StartStopTriggerLogMixin):
+    dur: None = field(kw_only=True, init=False, default=None)
+    duration_bounds: tuple[float, float] = field(kw_only=True)
+    rng: np.random.Generator = field(kw_only=True)
 
     def __post_init__(self):
-        self.stim_constructor_kwargs = {}
-        self.test_word = None
-        super().__post_init__()
-        self.start_calls.insert(0, (self._choose_query,))
+        def duration_callable():
+            return self.rng.uniform(*self.duration_bounds)
 
-    def _choose_query(self, t):
-        if len(self.word_list) == 0 or self.stim_idx is None:
-            raise ValueError(
-                "QueryStim requires a word_list and stim_idx to be set. Make sure "
-                "it isn't being run before TwoWordState.update_words is called."
-            )
-        widx = self.word_list.iloc[self.stim_idx].name
-        if "w1" in self.word_list.columns and "w2" in self.word_list.columns:
-            words = self.word_list.loc[widx][["w1", "w2"]]
-            correct_word = self.rng.choice(words)
-            other_words = self.word_list.drop(index=widx)[["w1", "w2"]].values.flatten()
-        elif "word" in self.word_list.columns:
-            correct_word = self.word_list.loc[widx]["word"]
-            other_words = self.word_list.drop(index=widx)["word"]
-        else:
-            raise ValueError(
-                "word_list must have a column named 'word' (single word stim) or 'w1' and 'w2' "
-                "(two-word stim) to use QueryStim."
-            )
-        incorr_word = self.rng.choice(other_words)
-        self.test_word = self.rng.choice([correct_word, incorr_word])
-        self.truth = self.test_word == correct_word
-        self.stim.stim_constructor_kwargs["query"]["text"] = f"{self.test_word}?"
+        self.dur = duration_callable
+        super().attach_trigger()
+        super().__post_init__()
+
+
+@dataclass
+class QueryState(ps.StimulusState, StartStopTriggerLogMixin):
+    stim: ims.QueryStim = field(kw_only=True)
+    query_tracker: Mapping = field(kw_only=True)
+    update_fn: callable = field(kw_only=True)
+    query_kwargs: Mapping = field(kw_only=True, default_factory=dict)
+
+    def __post_init__(self):
+        super().attach_trigger()
+        super().__post_init__()
+
+        self.test_word = None
+        self.truth = None
+        self.start_calls.insert(0, (self.update_fn, (self.query_tracker, self)))
+        self.start_calls.insert(1, self._set_query)
+        self.loggables.add(
+            "start",
+            pe.AttributeLogItem("test_word", True, self, "test_word"),
+        )
+        self.loggables.add(
+            "start",
+            pe.AttributeLogItem("truth", True, self, "truth"),
+        )
+
+    def _set_query(self):
+        self.stim.stim_kwargs["query"]["text"] = f"{self.test_word}?"
