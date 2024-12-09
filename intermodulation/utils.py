@@ -175,7 +175,7 @@ def load_prep_words(
     rng: np.random.Generator,
     miniblock_len: int,
     freqs: Sequence[float],
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # Prepare word stimuli by first shuffling, then assigning frequencies
     twowords = pd.read_csv(path_2w, index_col=0)
     twowords = twowords.sample(frac=1, random_state=rng)

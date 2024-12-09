@@ -167,7 +167,10 @@ class TwoWordMiniblockState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
         self.condition = initial["condition"]
 
     def _set_pixreport(self, *args, **kwargs):
-        word_states = (self.stim.states["word1"], self.stim.states["word2"])
+        word_states = (
+            bool(self.stim.stim["word1"].opacity),
+            bool(self.stim.stim["word2"].opacity),
+        )
         self.stim.stim["reporting_pix"].fillColor = REPORT_PIX_VALS[word_states]
 
 
@@ -185,7 +188,7 @@ class OneWordState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
         words = self.word_list.iloc[self.word_idx]
         self.word_cond = words["condition"]
         self.stim.word1 = words["w1"]
-        self.frequencies["words"]["word1"] = words["w1_freq"]
+        self.frequencies["word1"] = words["w1_freq"]
         self.frequencies["reporting_pix"] = words["w1_freq"]
 
         self.stim_constructor_kwargs = {}
@@ -204,10 +207,73 @@ class OneWordState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
         self.word_cond = words["condition"]
         self.stim.word1 = words["w1"]
 
-        self.frequencies["words"]["word1"] = words["w1_freq"]
+        self.frequencies["word1"] = words["w1_freq"]
         if self.stim.reporting_pix:
             self.frequencies["reporting_pix"] = words["w1_freq"]
         return
+
+
+@dataclass
+class OneWordMiniblockState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
+    stim: ims.TwoWordStim = field(kw_only=True)
+    stim_dur: float = field(kw_only=True)
+    word_list: pd.DataFrame = field(kw_only=True)
+
+    def __post_init__(self):
+        super().attach_trigger()
+        super().__post_init__()
+        self.miniblock_idx = 0
+        self.wordset_idx = 0
+        self.wordframes = int(np.round(self.stim_dur / (1 / self.framerate)))
+
+        # Ignore the initial passed words and use the list
+        self.wordset = self.word_list.query("miniblock == 0")
+        self._init_miniblock()
+        self.update_calls.insert(1, self.check_word_update)
+        self.end_calls.append(self._inc_miniblock)
+        if self.stim.reporting_pix:
+            self.update_calls.append(self._set_pixreport)
+
+    def check_word_update(self):
+        if self.frame_num % self.wordframes == 0 and self.frame_num > 0:
+            self._inc_wordidx()
+            self.word1 = self.wordset.iloc[self.wordset_idx]["w1"]
+            changed = self.stim.update_stim({})
+            if changed is not None:
+                changed = [(*v, self.frame_num) for v in changed]
+                self._update_log.extend(changed)
+
+    @property
+    def word1(self):
+        return self.stim.word1
+
+    @word1.setter
+    def word1(self, value):
+        self.stim.word1 = value
+
+    def _inc_wordidx(self):
+        if self.wordset_idx == (len(self.wordset) - 1):
+            pass
+        else:
+            self.wordset_idx += 1
+        self.condition = self.wordset.iloc[self.wordset_idx]["condition"]
+
+    def _inc_miniblock(self):
+        self.wordset_idx = 0
+        self.miniblock_idx += 1
+        self.wordset = self.word_list.query(f"miniblock == {self.miniblock_idx}")
+        self._init_miniblock()
+
+    def _init_miniblock(self):
+        initial = self.wordset.iloc[0]
+        self.word1 = initial["w1"]
+        self.frequencies["word1"] = initial["w1_freq"]
+        if self.stim.reporting_pix:
+            self.frequencies["reporting_pix"] = initial["w1_freq"]
+        self.condition = initial["condition"]
+
+    def _set_pixreport(self):
+        pass
 
 
 @dataclass

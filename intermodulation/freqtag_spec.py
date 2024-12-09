@@ -21,7 +21,7 @@ debug = SimpleNamespace(
     WORD_DUR=1.0,
     ITI_BOUNDS=[0.5, 1.0],
     FIXATION_DUR=0.25,
-    FRAMERATE=165,
+    FRAMERATE=100,
     FULLSCR=False,
     WINDOW_CONFIG={
         "screen": 0,  # 0 is the primary monitor
