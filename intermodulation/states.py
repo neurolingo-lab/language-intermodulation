@@ -215,7 +215,7 @@ class OneWordState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
 
 @dataclass
 class OneWordMiniblockState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
-    stim: ims.TwoWordStim = field(kw_only=True)
+    stim: ims.OneWordStim = field(kw_only=True)
     stim_dur: float = field(kw_only=True)
     word_list: pd.DataFrame = field(kw_only=True)
 

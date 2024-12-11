@@ -146,11 +146,9 @@ class OneWordStim(pst.StatefulStim):
         match len(self.stim), kwargs:
             case 0, _:
                 raise ValueError("Stimulus not started.")
-            case _, {}:
-                return
             case _, {"word1": {"text": _}}:
                 pass
-            case _, _:
+            case _, {}:
                 if "word1" not in kwargs:
                     kwargs["word1"] = {}
                 if self.stim["word1"].text != self.word1:

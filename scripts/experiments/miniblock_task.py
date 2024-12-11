@@ -102,29 +102,23 @@ onewordstim = imst.OneWordStim(
 )
 fixstim = imst.FixationStim(window)
 
+query_cats = [
+    ("word", "seen"),
+    ("word", "unseen"),
+    ("nonword", "seen"),
+    ("nonword", "unseen"),
+]
+
 query_tracker = {
     "miniblock": 0,
     "last_words": twowords.query("miniblock == 0"),
-    "query_idx": 0,
-    "categories": [
-        ("word", "seen"),
-        ("word", "unseen"),
-        ("nonword", "seen"),
-        ("nonword", "unseen"),
-    ],
-    "query_order": rng.permutation(4),
+    "categories": query_cats.copy(),
 }
 query_tracker_1w = {
     "miniblock": 0,
     "last_words": onewords.query("miniblock == 0"),
-    "query_idx": 0,
-    "categories": [
-        ("word", "seen"),
-        ("word", "unseen"),
-        ("nonword", "seen"),
-        ("nonword", "unseen"),
-    ],
-    "query_order": rng.permutation(4),
+    "categories": query_cats.copy(),
+    "remaining_cat": query_cats.copy(),
 }
 
 qchoice = partial(imu.set_next_query_miniblock, allwords=allwords, rng=rng)
@@ -334,9 +328,9 @@ psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_2w.toggle_paus
 psyev.globalKeys.add(key="q", modifiers=["ctrl"], func=save_and_quit)
 
 clock.reset()
-# controller_2w.run_experiment()
-# controller_2w.logger.contdf.to_csv("testcont.csv")
-# controller_2w.logger.statesdf.to_csv("teststates.csv")
+controller_2w.run_experiment()
+controller_2w.logger.contdf.to_csv("testcont.csv")
+controller_2w.logger.statesdf.to_csv("teststates.csv")
 
 psyev.globalKeys.clear()
 controller = controller_1w

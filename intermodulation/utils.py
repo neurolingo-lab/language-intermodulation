@@ -56,7 +56,7 @@ def next_state_query_miniblock(
     iti_id : str, optional
         The ID of the ITI state, to be returned if we have queried all categories, by default "iti"
     """
-    if (q_track["query_idx"] + 1) % (len(q_track["categories"])) == 0:
+    if len(q_track["remaining_cat"]) == 1:
         return nexts.index(iti_id)
     return nexts.index(query_id)
 
@@ -95,13 +95,12 @@ def set_next_query_miniblock(
         Random generator to use
     """
     # Store some variables locally for easier access
-    n_queries = len(q_track["categories"])
-    qidx = q_track["query_idx"] % n_queries
-    catnum = q_track["query_order"][qidx]
-    if qidx == 0:  # If we have queried all categories, permute the order again and get new cands
-        q_track["query_order"] = rng.permutation(n_queries)
+    rem_cat = len(q_track["remaining_cat"])
+    # If we have queried all categories, permute the order again and get new cands
+    if rem_cat == 0 or (q_track["miniblock"] == 0 and rem_cat == 4):
+        q_track["remaining_cat"] = [q_track["categories"][i] for i in rng.permutation(4)]
         candidates = {}
-        for cat in q_track["categories"]:
+        for cat in q_track["remaining_cat"]:
             # Set the mask of words that meet our word/non-word choices
             if cat[0] == "word":
                 wordmask = allwords["cond"] == cat[0]
@@ -118,55 +117,129 @@ def set_next_query_miniblock(
             # Sample the candidates for this category
             candidates[cat] = allwords[wordmask & seenmask].copy().sample(frac=1, random_state=rng)
         q_track["candidates"] = candidates  # Store the candidates for the next queries
-    qcat = q_track["categories"][catnum]
+    qcat = q_track["remaining_cat"].pop()
     # Set the next word to be tested and whether the correct response is True (seen) or False
-    state.test_word = q_track["candidates"][qcat].sample(random_state=rng)["word"].values[0]
-    seen = qcat[1]
-    state.truth = True if seen == "seen" else False
-
-    q_track["query_idx"] += 1
+    catdf = q_track["candidates"][qcat]
+    if len(catdf) == 0:
+        set_next_query_miniblock(q_track, state, allwords, rng)
+    else:
+        state.test_word = catdf.sample(random_state=rng)["word"].values[0]
+        seen = qcat[1]
+        state.truth = True if seen == "seen" else False
     return
 
 
+def shuffle_condition(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """
+    Shuffle the condition column of a DataFrame, while keeping the number of each condition the same.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with a column named 'condition' that should be shuffled
+    rng : np.random.Generator
+        Random number generator to use for shuffling
+
+    Returns
+    -------
+    pd.DataFrame
+        The input DataFrame with the 'condition' column shuffled
+    """
+    df = df.copy()
+    grp = df.groupby("condition")
+    return grp.sample(frac=1, random_state=rng).reset_index(drop=True)
+
+
+def split_miniblocks(
+    df: pd.DataFrame,
+    miniblock_len: int,
+    rng: np.random.Generator = np.random.default_rng(),
+    dup_extra: bool = False,
+) -> pd.DataFrame:
+    """
+    Split a dataframe into mini-blocks of a given length, and assign a miniblock number to each row.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe of stimuli which must have a 'condition' column. The number of elements per
+        condition must be divisible by the miniblock length if `dup_extra` is False.
+    miniblock_len : int
+        Length of each mini-block
+    rng : np.random.Generator
+        Random state to pass to the sampling function.
+    dup_extra : bool, optional
+        If the number of stimuli in a condition are not a whole-number multiple of `miniblock_len`,
+        whether to duplicate some elements to reach the whole-number. By default False
+
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with new column `miniblock` containing the miniblock number for each row
+    """
+    df = df.copy()
+    n_mini = len(df) / miniblock_len  # Number of mini-blocks
+    if n_mini % 1 != 0:  # make sure we're not dropping stimuli
+        if not dup_extra:
+            raise ValueError("The miniblock length does not evently divide the number of stimuli.")
+        else:
+            condrem = {
+                cond: len(df.query(f"condition == '{cond}'")) % miniblock_len
+                for cond in df["condition"].unique()
+            }
+            dups = []
+            for cond, n in condrem.items():
+                dups.append(df.query(f"condition == '{cond}'").sample(n, random_state=rng))
+            dupdf = pd.concat(dups, ignore_index=True)
+            df = pd.concat([df, dupdf], ignore_index=True)
+    sorted_df = df.sort_values("condition")
+    miniblocks = np.repeat(np.arange(int(n_mini)), miniblock_len)
+    sorted_df["miniblock"] = miniblocks
+    return sorted_df
+
+
 def assign_miniblock_freqs(
+    df: pd.DataFrame, freqs: Sequence[float], rng: np.random.Generator = np.random.default_rng()
+) -> pd.DataFrame:
+    df = df.copy()
+    minis = df["miniblock"].value_counts()
+    halfmini = len(minis) // 2
+    # We want to balance the number of F1 and F2 tags in each miniblock, so we will create a
+    # balanced number of F1/F2 blocks and shuffle the indices. This biases our miniblocks to have
+    # one more F1 tag (idx 0) if there are an uneven number.
+    freqids = np.concat((np.zeros(halfmini), np.ones(len(minis) - halfmini)))
+    freqidxs = rng.permutation(freqids)
+    stim_freqidxs = np.repeat(freqidxs, minis).reshape(-1, 1)
+    freqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])
+    df["w1_freq"] = freqs[:, 0]
+    if "w2" in df.columns:
+        df["w2_freq"] = freqs[:, 1]
+    return df
+
+
+def prep_miniblocks(
     task: Literal["twoword", "oneword"],
     rng: np.random.Generator,
     df: pd.DataFrame,
     miniblock_len: int,
     freqs: Sequence[float],
 ) -> pd.DataFrame:
-    df = df.copy()
-    if task not in ["twoword", "oneword"]:
-        raise ValueError("task must be either 'twoword' or 'oneword'.")
-    n_mini = len(df) / miniblock_len  # Number of mini-blocks
-    if n_mini % 1 != 0:  # make sure we're not dropping stimuli
-        raise ValueError("Number of mini-blocks must be an integer. Miniblock length is wrong.")
-    else:
-        n_mini = int(n_mini)
-    freqidxs = np.concat((np.zeros(n_mini // 2), np.ones(n_mini // 2)))  # Balance number F1/F2
-    miniblock_nums = np.arange(n_mini)
-    rng.shuffle(freqidxs)  # Randomize order
-    freqidxs = np.repeat(freqidxs, miniblock_len).reshape(-1, 1)
-    miniblock_nums = np.repeat(miniblock_nums, miniblock_len).reshape(-1, 1)
-    tilefreqs = np.tile(spec.FREQUENCIES, len(freqidxs)).reshape(-1, 2)
-    freqs = np.where(freqidxs == 0, tilefreqs, tilefreqs[:, ::-1])
-    if task == "twoword":
-        df["w1_freq"] = freqs[:, 0]
-        df["w2_freq"] = freqs[:, 1]
-    else:
-        df["w1_freq"] = freqs[:, 0]
-    df["miniblock"] = miniblock_nums
+    # Shuffle within conditions and split into miniblocks.
+    shuf_df = shuffle_condition(df, rng)
+    miniblock_df = split_miniblocks(shuf_df, miniblock_len, rng)
+    # Assign frequencies to each miniblock
+    outdf = assign_miniblock_freqs(miniblock_df, freqs, rng)
 
     # Check that the frequencies are balanced within each miniblock
-    assert all(df["w1_freq"].value_counts() == len(df) / 2)
+    assert all(outdf["w1_freq"].value_counts() == len(outdf) / 2)
     twoword_minis = [
-        df.query(f"miniblock == {mini}") for mini in range(int(len(df) / spec.MINIBLOCK_LEN))
+        outdf.query(f"miniblock == {mini}") for mini in range(int(len(outdf) / spec.MINIBLOCK_LEN))
     ]
     assert all([all(minib["w1_freq"] == minib.iloc[0]["w1_freq"]) for minib in twoword_minis])
     if task == "twoword":
-        assert all(df["w2_freq"].value_counts() == len(df) / 2)
+        assert all(outdf["w2_freq"].value_counts() == len(outdf) / 2)
         assert all([all(minib["w2_freq"] == minib.iloc[0]["w2_freq"]) for minib in twoword_minis])
-    return df
+    return outdf
 
 
 def load_prep_words(
@@ -179,10 +252,10 @@ def load_prep_words(
     # Prepare word stimuli by first shuffling, then assigning frequencies
     twowords = pd.read_csv(path_2w, index_col=0)
     twowords = twowords.sample(frac=1, random_state=rng)
-    twowords = assign_miniblock_freqs("twoword", rng, twowords, miniblock_len, freqs)
+    twowords = prep_miniblocks("twoword", rng, twowords, miniblock_len, freqs)
     onewords = pd.read_csv(path_1w, index_col=0)
     onewords = onewords.sample(frac=1, random_state=rng)
-    onewords = assign_miniblock_freqs("oneword", rng, onewords, miniblock_len, freqs)
+    onewords = prep_miniblocks("oneword", rng, onewords, miniblock_len, freqs)
 
     # Generate a list of all used words together with their categories, for the query task
     all_2w = pd.melt(
