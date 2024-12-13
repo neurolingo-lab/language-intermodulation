@@ -99,7 +99,7 @@ for group in ["odd", "even"]:
     seen = remaining_seen[group].groupby("variable").sample(8, random_state=rng)
     unseen = remaining_unseen[group].groupby("variable").sample(8, random_state=rng)
     oneword_words[group] = (
-        pd.concat([seen, unseen], ignore_index=True).iloc[:15].rename(columns={"value": "w1"})
+        pd.concat([seen, unseen], ignore_index=True).iloc[:30].rename(columns={"value": "w1"})
     )
     oneword_words[group]["condition"] = "word"
     nw = pd.DataFrame(oneword_clust[group], columns=["w1"])

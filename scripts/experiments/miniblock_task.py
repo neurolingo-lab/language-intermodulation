@@ -26,6 +26,7 @@ default_id = "".join(gen.generate(128).split(" ")[:3])
 subinfo = {
     "task": "miniblockIM",
     "subject": default_id,
+    "even_group": bool(np.random.binomial(1, 0.5)),
     "session": 1,
     "date": datetime.now().strftime("%Y-%m-%d_%H-%M"),
     "seed": np.random.randint(0, 255),
@@ -65,11 +66,15 @@ if subinfo["debug"]:  # Override the experiment parameters with the debug ones i
 ## Load in stimuli for both tasks ##
 ####################################
 
+group = "even" if subinfo["even_group"] == 0 else "odd"
+onewordpath = spec.WORDSPATH / f"{group}_one_word_stimuli.csv"
+twowordpath = spec.WORDSPATH / f"{group}_two_word_stimuli.csv"
+
 rng = np.random.default_rng(subinfo["seed"])
 # Prepare word stimuli by first shuffling, then assigning frequencies
 onewords, twowords, allwords = imu.load_prep_words(
-    path_1w=spec.ONEWORDPATH,
-    path_2w=spec.TWOWORDPATH,
+    path_1w=onewordpath,
+    path_2w=twowordpath,
     rng=rng,
     miniblock_len=spec.MINIBLOCK_LEN,
     freqs=[stimpars["f1"], stimpars["f2"]],

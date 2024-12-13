@@ -4,8 +4,7 @@ from types import SimpleNamespace
 from attridict import AttriDict
 
 # Parameters for the experiment itself
-TWOWORDPATH = Path(__file__).parents[1] / "two_word_stimuli_nina.csv"
-ONEWORDPATH = Path(__file__).parents[1] / "one_word_stimuli.csv"
+WORDSPATH = Path(__file__).parents[1]
 MINIBLOCK_LEN = 10
 N_BLOCKS = 3
 N_1W_BLOCKS = 2
@@ -17,7 +16,7 @@ FIXATION_DUR = 0.5
 # Debug parameters
 debug = SimpleNamespace(
     N_BLOCKS=1,
-    FREQUENCIES=[16.5, 20.625],
+    FREQUENCIES=[16.666666, 20.0],
     WORD_DUR=1.0,
     ITI_BOUNDS=[0.5, 1.0],
     FIXATION_DUR=0.25,

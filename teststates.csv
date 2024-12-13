@@ -1,0 +1,3 @@
+state_number,start,state_start,state,next_state,target_end,trial_number,end,block_number,block_trial,trial_end,block_end,trigger_time
+0,0.032012939453125,0.03067803382873535,fixation,words,2.0306780338287354,0,2.034255027770996,0,0,False,False,
+1,2.0721499919891357,2.071445941925049,words,query,23.07144594192505,0,,,,,,2.0723390579223633
