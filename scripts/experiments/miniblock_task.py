@@ -34,13 +34,30 @@ subinfo = {
 dialog = DlgFromDict(subinfo, fixed=["date"], title="Subject Information")
 
 if dialog.OK:
-    pass
+    if subinfo["debug"]:
+        stimpars = {
+            "fullscr": spec.debug.FULLSCR,
+            "framerate": spec.debug.FRAMERATE,
+            "f1": spec.debug.FREQUENCIES[0],
+            "f2": spec.debug.FREQUENCIES[1],
+        }
+    else:
+        stimpars = {
+            "fullscr": spec.FULLSCR,
+            "framerate": spec.FRAMERATE,
+            "f1": spec.FREQUENCIES[0],
+            "f2": spec.FREQUENCIES[1],
+        }
+
+    if subinfo["debug"]:
+        debugdialog = DlgFromDict(stimpars, title="Debug Display Parameter Settings")
 else:
     exit()
 
 if subinfo["debug"]:  # Override the experiment parameters with the debug ones if needed
     for attr in spec.debug.__dict__.keys():
-        setattr(spec, attr, spec.debug.__dict__[attr])
+        if attr not in ["FULLSCR", "FRAMERATE", "FREQUENCIES"]:
+            setattr(spec, attr, spec.debug.__dict__[attr])
     subinfo["seed"] = 0
 
 
@@ -55,7 +72,7 @@ onewords, twowords, allwords = imu.load_prep_words(
     path_2w=spec.TWOWORDPATH,
     rng=rng,
     miniblock_len=spec.MINIBLOCK_LEN,
-    freqs=spec.FREQUENCIES,
+    freqs=[stimpars["f1"], stimpars["f2"]],
 )
 
 ########################################
@@ -64,16 +81,17 @@ onewords, twowords, allwords = imu.load_prep_words(
 
 clock = pq.Clock()
 psylog.setDefaultClock(clock)
+spec.WINDOW_CONFIG.update(fullscr=stimpars["fullscr"])
 window = psyv.Window(**spec.WINDOW_CONFIG)
 # If we have a debug framerate, use that. Otherwise, measure the actual framerate
-if not hasattr(spec, "FRAMERATE"):
+if not hasattr(spec, "FRAMERATE") and "framerate" not in stimpars:
     framerate = window.getActualFrameRate()
     if framerate is None:
         raise ValueError("Couldn't accurately measure framerate")
     else:
         framerate = np.round(framerate)
 else:
-    framerate = spec.FRAMERATE
+    framerate = stimpars["framerate"]
 
 if not hasattr(spec, "TRIGGER") or spec.TRIGGER is None:
     trigger = MockTrigger()
@@ -113,6 +131,7 @@ query_tracker = {
     "miniblock": 0,
     "last_words": twowords.query("miniblock == 0"),
     "categories": query_cats.copy(),
+    "remaining_cat": query_cats.copy(),
 }
 query_tracker_1w = {
     "miniblock": 0,
@@ -141,7 +160,7 @@ twoword = ims.TwoWordMiniblockState(
     stim=wordstim,
     stim_dur=spec.WORD_DUR,
     clock=clock,
-    frequencies={"w1": spec.FREQUENCIES[0], "w2": spec.FREQUENCIES[1], "fixdot": None},
+    frequencies={"w1": stimpars["f1"], "w2": stimpars["f2"], "fixdot": None},
     word_list=twowords,
     loggables=pe.Loggables(
         start=[pe.FunctionLogItem("state_start", True, clock.getTime, timely=True)],
@@ -158,7 +177,7 @@ oneword = ims.OneWordMiniblockState(
     stim=onewordstim,
     stim_dur=spec.WORD_DUR,
     clock=clock,
-    frequencies={"word1": spec.FREQUENCIES[0], "fixdot": None},
+    frequencies={"word1": stimpars["f1"], "fixdot": None},
     word_list=onewords,
     loggables=pe.Loggables(
         start=[pe.FunctionLogItem("state_start", True, clock.getTime, timely=True)],

@@ -202,18 +202,23 @@ def assign_miniblock_freqs(
     df: pd.DataFrame, freqs: Sequence[float], rng: np.random.Generator = np.random.default_rng()
 ) -> pd.DataFrame:
     df = df.copy()
-    minis = df["miniblock"].value_counts()
-    halfmini = len(minis) // 2
-    # We want to balance the number of F1 and F2 tags in each miniblock, so we will create a
+    df["w1_freq"] = np.nan
+    if "w2" in df.columns:
+        df["w2_freq"] = np.nan
+    minis = df["miniblock"].groupby("condition").value_counts()
+    # We want to balance the number of F1 and F2 tags in each condition, so we will create a
     # balanced number of F1/F2 blocks and shuffle the indices. This biases our miniblocks to have
     # one more F1 tag (idx 0) if there are an uneven number.
-    freqids = np.concat((np.zeros(halfmini), np.ones(len(minis) - halfmini)))
-    freqidxs = rng.permutation(freqids)
-    stim_freqidxs = np.repeat(freqidxs, minis).reshape(-1, 1)
-    stim_freqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])
-    df["w1_freq"] = stim_freqs[:, 0]
-    if "w2" in df.columns:
-        df["w2_freq"] = stim_freqs[:, 1]
+    freqids = []
+    for cond in minis.index.levels[0]:
+        halfcondmini = len(minis[cond]) // 2
+        freqids = np.concat([np.zeros(halfcondmini), np.ones(len(minis[cond]) - halfcondmini)])
+        freqidxs = rng.permutation(freqids)
+        stim_freqidxs = np.repeat(freqidxs, minis[cond]).reshape(-1, 1)
+        condfreqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])
+        df.at[df["condition"] == cond, "w1_freq"] = condfreqs[:, 0]
+        if "w2" in df.columns:
+            df.at[df["condition"] == cond, "w2_freq"] = condfreqs[:, 1]
     return df
 
 
