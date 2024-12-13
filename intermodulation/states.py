@@ -155,6 +155,8 @@ class TwoWordMiniblockState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
     def _inc_miniblock(self):
         self.wordset_idx = 0
         self.miniblock_idx += 1
+        if self.miniblock_idx == len(self.word_list["miniblock"].unique()):
+            self.miniblock_idx = 0
         self.wordset = self.word_list.query(f"miniblock == {self.miniblock_idx}")
         self._init_miniblock()
 
@@ -261,6 +263,8 @@ class OneWordMiniblockState(ps.FrameFlickerStimState, StartStopTriggerLogMixin):
     def _inc_miniblock(self):
         self.wordset_idx = 0
         self.miniblock_idx += 1
+        if self.miniblock_idx == len(self.word_list["miniblock"].unique()):
+            self.miniblock_idx = 0
         self.wordset = self.word_list.query(f"miniblock == {self.miniblock_idx}")
         self._init_miniblock()
 

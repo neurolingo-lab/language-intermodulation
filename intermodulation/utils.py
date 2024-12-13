@@ -211,7 +211,9 @@ def assign_miniblock_freqs(
     freqids = []
     for cond in minis.index.levels[0]:
         halfcondmini = len(minis[cond]) // 2
-        freqids = np.concat([np.zeros(halfcondmini), np.ones(len(minis[cond]) - halfcondmini)])
+        freqids = np.concatenate(
+            [np.zeros(halfcondmini), np.ones(len(minis[cond]) - halfcondmini)]
+        )
         freqidxs = rng.permutation(freqids)
         stim_freqidxs = np.repeat(freqidxs, minis[cond]).reshape(-1, 1)
         condfreqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])

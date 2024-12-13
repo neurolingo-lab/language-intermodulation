@@ -33,12 +33,14 @@ INTERTASK_TEXT2 = "Please let the experimenter know you're ready and the task wi
 # Debug parameters
 debug = SimpleNamespace(
     N_BLOCKS=1,
+    N_1W_BLOCKS=1,
     FREQUENCIES=[16.666666, 25.0],
-    WORD_DUR=1.0,
+    WORD_DUR=2.1,
     ITI_BOUNDS=[0.5, 1.0],
-    FIXATION_DUR=0.25,
-    FRAMERATE=100,
-    FULLSCR=False,
+    FIXATION_DUR=2.0,
+    FRAMERATE=240,
+    FULLSCR=True,
+    REPORT_PIX_SIZE=36,
     WINDOW_CONFIG={
         "screen": 0,  # 0 is the primary monitor
         "fullscr": False,
@@ -53,6 +55,7 @@ debug = SimpleNamespace(
 )
 
 # Detailed display parameters for experiment
+TRIGGER = "/dev/parport0"
 FULLSCR = True
 FRAMERATE = 240
 WORD_SEP: float = 0.3  # word separation in degrees
@@ -63,7 +66,7 @@ DISPLAY_HEIGHT = 30.5 * (720 / 1080)  # cm
 DISPLAY_WIDTH = 55 * (1280 / 1920)  # cm
 FOVEAL_ANGLE = 5.0  # degrees
 REPORT_PIX = True
-REPORT_PIX_SIZE = 10
+REPORT_PIX_SIZE = 36
 WINDOW_CONFIG = {
     "screen": 0,  # 0 is the primary monitor
     "fullscr": True,
