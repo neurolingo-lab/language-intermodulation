@@ -38,6 +38,7 @@ debug = SimpleNamespace(
 
 # Detailed display parameters for experiment
 FULLSCR = True
+FRAMERATE = 240
 WORD_SEP: float = 0.3  # word separation in degrees
 
 DISPLAY_RES = (1280, 720)

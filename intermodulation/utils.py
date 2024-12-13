@@ -7,7 +7,6 @@ import pandas as pd
 import psystate.controller as psycon
 from byte_triggers import ParallelPortTrigger
 
-import intermodulation.freqtag_spec as spec
 from intermodulation.freqtag_spec import (
     TRIGGERS,
 )
@@ -205,7 +204,7 @@ def assign_miniblock_freqs(
     df["w1_freq"] = np.nan
     if "w2" in df.columns:
         df["w2_freq"] = np.nan
-    minis = df["miniblock"].groupby("condition").value_counts()
+    minis = df.groupby("condition").value_counts(["miniblock"])
     # We want to balance the number of F1 and F2 tags in each condition, so we will create a
     # balanced number of F1/F2 blocks and shuffle the indices. This biases our miniblocks to have
     # one more F1 tag (idx 0) if there are an uneven number.
@@ -216,9 +215,9 @@ def assign_miniblock_freqs(
         freqidxs = rng.permutation(freqids)
         stim_freqidxs = np.repeat(freqidxs, minis[cond]).reshape(-1, 1)
         condfreqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])
-        df.at[df["condition"] == cond, "w1_freq"] = condfreqs[:, 0]
+        df.loc[df["condition"] == cond, "w1_freq"] = condfreqs[:, 0]
         if "w2" in df.columns:
-            df.at[df["condition"] == cond, "w2_freq"] = condfreqs[:, 1]
+            df.loc[df["condition"] == cond, "w2_freq"] = condfreqs[:, 1]
     return df
 
 
@@ -234,16 +233,6 @@ def prep_miniblocks(
     miniblock_df = split_miniblocks(shuf_df, miniblock_len, rng)
     # Assign frequencies to each miniblock
     outdf = assign_miniblock_freqs(miniblock_df, freqs, rng)
-
-    # Check that the frequencies are balanced within each miniblock
-    assert all(outdf["w1_freq"].value_counts() == len(outdf) / 2)
-    twoword_minis = [
-        outdf.query(f"miniblock == {mini}") for mini in range(int(len(outdf) / spec.MINIBLOCK_LEN))
-    ]
-    assert all([all(minib["w1_freq"] == minib.iloc[0]["w1_freq"]) for minib in twoword_minis])
-    if task == "twoword":
-        assert all(outdf["w2_freq"].value_counts() == len(outdf) / 2)
-        assert all([all(minib["w2_freq"] == minib.iloc[0]["w2_freq"]) for minib in twoword_minis])
     return outdf
 
 

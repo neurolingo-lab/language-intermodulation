@@ -98,6 +98,14 @@ if not hasattr(spec, "TRIGGER") or spec.TRIGGER is None:
 else:
     trigger = ParallelPortTrigger(spec.TRIGGER)
 
+if not subinfo["debug"]:
+    wordframes = spec.WORD_DUR * framerate
+    assert wordframes % 1 == 0, "Word duration must produce a whole number of frames"
+    f1_frames = int(np.round(framerate / stimpars["f1"]))
+    f2_frames = int(np.round(framerate / stimpars["f2"]))
+    assert f1_frames % 2 == 0 and f2_frames % 2 == 0, "Frames per cycle for each freq must be even"
+
+
 ###########################################
 ## Generate stimuli and update functions ##
 ###########################################
@@ -201,7 +209,7 @@ fixation = ims.FixationState(
 )
 query = ims.QueryState(
     next=["query", "iti"],
-    dur=2.0,
+    dur=spec.WORD_DUR,
     transition=qnext,
     window=window,
     stim=imst.QueryStim(window),
@@ -211,7 +219,7 @@ query = ims.QueryState(
 )
 query_1w = ims.QueryState(
     next=["query", "iti"],
-    dur=2.0,
+    dur=spec.WORD_DUR,
     transition=qnext_1w,
     window=window,
     stim=imst.QueryStim(window),
