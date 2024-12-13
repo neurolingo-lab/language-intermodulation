@@ -25,13 +25,15 @@ TASK1_EXPL = dict(
     color="white",
     height=1.0,
 )
-INTERTASK_TEXT = "Part 1 Done! Press the pause button to continue once you're ready."
+INTERTASK_TEXT = (
+    "Part 1 Done! Time for a break!\n" "Press the pause button to continue once you're ready."
+)
 INTERTASK_TEXT2 = "Please let the experimenter know you're ready and the task will start."
 
 # Debug parameters
 debug = SimpleNamespace(
     N_BLOCKS=1,
-    FREQUENCIES=[16.666666, 20.0],
+    FREQUENCIES=[16.666666, 25.0],
     WORD_DUR=1.0,
     ITI_BOUNDS=[0.5, 1.0],
     FIXATION_DUR=0.25,

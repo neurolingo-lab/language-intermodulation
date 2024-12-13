@@ -184,7 +184,7 @@ twoword = ims.TwoWordMiniblockState(
         end=[pe.FunctionLogItem("state_end", True, clock.getTime, timely=True)],
     ),
     log_updates=True,
-    strict_freqs="allow",
+    strict_freqs=False,
 )
 oneword = ims.OneWordMiniblockState(
     next="query",
@@ -201,7 +201,7 @@ oneword = ims.OneWordMiniblockState(
         end=[pe.FunctionLogItem("state_end", True, clock.getTime, timely=True)],
     ),
     log_updates=True,
-    strict_freqs="allow",
+    strict_freqs=False,
 )
 fixation = ims.FixationState(
     next="words",
@@ -361,8 +361,31 @@ controller_1w = pc.ExperimentController(
 
 controller = controller_2w
 
+starting = False
+
+
+def startnew():
+    global starting
+    starting = True
+    return
+
+
+def waitloop(text):
+    global starting
+    while not starting:
+        text.draw()
+        window.flip()
+    return
+
+
 clock.reset()
 if not subinfo["debug"] or not stimpars["skip_twoword"]:
+    expltext = psyv.TextStim(window, **spec.TASK1_EXPL)
+    psyev.globalKeys.add(key=spec.PAUSE_KEY, func=startnew)
+    waitloop(expltext)
+    del expltext
+    psyev.globalKeys.clear()
+
     psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_2w.toggle_pause)
     psyev.globalKeys.add(key=spec.PAUSE_KEY, func=controller_2w.toggle_pause)
     psyev.globalKeys.add(key="q", modifiers=["ctrl"], func=save_and_quit)
@@ -379,15 +402,18 @@ pausetxt = psyv.TextStim(window, text=spec.INTERTASK_TEXT, pos=(0, 0), height=0.
 pausetxt.draw()
 window.flip()
 
-psyev.waitKeys(keyList=[spec.PAUSE_KEY], clearEvents=True)
+psyev.globalKeys.add(key=spec.PAUSE_KEY, func=startnew)
+waitloop(pausetxt)
 
+starting = False
 pausetxt.text = spec.INTERTASK_TEXT2
 pausetxt._needSetText = True
 pausetxt.draw()
 window.flip()
 
-psyev.waitKeys(keyList=["p"], modifiers=["ctrl"])
+waitloop(pausetxt)
 del pausetxt
+psyev.globalKeys.clear()
 
 controller = controller_1w
 psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_1w.toggle_pause)
