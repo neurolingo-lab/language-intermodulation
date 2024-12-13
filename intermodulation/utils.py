@@ -210,10 +210,10 @@ def assign_miniblock_freqs(
     freqids = np.concat((np.zeros(halfmini), np.ones(len(minis) - halfmini)))
     freqidxs = rng.permutation(freqids)
     stim_freqidxs = np.repeat(freqidxs, minis).reshape(-1, 1)
-    freqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])
-    df["w1_freq"] = freqs[:, 0]
+    stim_freqs = np.where(stim_freqidxs == 0, freqs, freqs[::-1])
+    df["w1_freq"] = stim_freqs[:, 0]
     if "w2" in df.columns:
-        df["w2_freq"] = freqs[:, 1]
+        df["w2_freq"] = stim_freqs[:, 1]
     return df
 
 
