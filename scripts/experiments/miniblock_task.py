@@ -360,12 +360,13 @@ controller_1w = pc.ExperimentController(
 )
 
 controller = controller_2w
-psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_2w.toggle_pause)
-psyev.globalKeys.add(key=spec.PAUSE_KEY, func=controller_2w.toggle_pause)
-psyev.globalKeys.add(key="q", modifiers=["ctrl"], func=save_and_quit)
 
 clock.reset()
 if not subinfo["debug"] or not stimpars["skip_twoword"]:
+    psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_2w.toggle_pause)
+    psyev.globalKeys.add(key=spec.PAUSE_KEY, func=controller_2w.toggle_pause)
+    psyev.globalKeys.add(key="q", modifiers=["ctrl"], func=save_and_quit)
+
     controller_2w.run_experiment()
     if subinfo["debug"]:
         controller_2w.logger.contdf.to_csv("testcont.csv")
@@ -373,18 +374,21 @@ if not subinfo["debug"] or not stimpars["skip_twoword"]:
     else:
         controller_2w.logger.save(f"twoword_{subinfo['subject']}_{subinfo['date']}.pkl")
 
-pausetxt = psyv.TextStim(window, text=spec.INTERTASK_TEXT, pos=(0, 0), height=0.3)
+psyev.globalKeys.clear()
+pausetxt = psyv.TextStim(window, text=spec.INTERTASK_TEXT, pos=(0, 0), height=0.4)
 pausetxt.draw()
 window.flip()
+
 psyev.waitKeys(keyList=[spec.PAUSE_KEY], clearEvents=True)
+
 pausetxt.text = spec.INTERTASK_TEXT2
 pausetxt._needSetText = True
 pausetxt.draw()
 window.flip()
+
 psyev.waitKeys(keyList=["p"], modifiers=["ctrl"])
+del pausetxt
 
-
-psyev.globalKeys.clear()
 controller = controller_1w
 psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_1w.toggle_pause)
 psyev.globalKeys.add(key=spec.PAUSE_KEY, func=controller_2w.toggle_pause)
