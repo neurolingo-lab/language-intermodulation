@@ -41,6 +41,8 @@ if dialog.OK:
             "framerate": spec.debug.FRAMERATE,
             "f1": spec.debug.FREQUENCIES[0],
             "f2": spec.debug.FREQUENCIES[1],
+            "skip_twoword": False,
+            "skip_oneword": False,
         }
     else:
         stimpars = {
@@ -48,6 +50,8 @@ if dialog.OK:
             "framerate": spec.FRAMERATE,
             "f1": spec.FREQUENCIES[0],
             "f2": spec.FREQUENCIES[1],
+            "skip_twoword": False,
+            "skip_oneword": False,
         }
 
     if subinfo["debug"]:
@@ -357,19 +361,41 @@ controller_1w = pc.ExperimentController(
 
 controller = controller_2w
 psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_2w.toggle_pause)
+psyev.globalKeys.add(key=spec.PAUSE_KEY, func=controller_2w.toggle_pause)
 psyev.globalKeys.add(key="q", modifiers=["ctrl"], func=save_and_quit)
 
 clock.reset()
-controller_2w.run_experiment()
-controller_2w.logger.contdf.to_csv("testcont.csv")
-controller_2w.logger.statesdf.to_csv("teststates.csv")
+if not subinfo["debug"] or not stimpars["skip_twoword"]:
+    controller_2w.run_experiment()
+    if subinfo["debug"]:
+        controller_2w.logger.contdf.to_csv("testcont.csv")
+        controller_2w.logger.statesdf.to_csv("teststates.csv")
+    else:
+        controller_2w.logger.save(f"twoword_{subinfo['subject']}_{subinfo['date']}.pkl")
+
+pausetxt = psyv.TextStim(window, text=spec.INTERTASK_TEXT, pos=(0, 0), height=0.3)
+pausetxt.draw()
+window.flip()
+psyev.waitKeys(keyList=[spec.PAUSE_KEY], clearEvents=True)
+pausetxt.text = spec.INTERTASK_TEXT2
+pausetxt._needSetText = True
+pausetxt.draw()
+window.flip()
+psyev.waitKeys(keyList=["p"], modifiers=["ctrl"])
+
 
 psyev.globalKeys.clear()
 controller = controller_1w
 psyev.globalKeys.add(key="p", modifiers=["ctrl"], func=controller_1w.toggle_pause)
+psyev.globalKeys.add(key=spec.PAUSE_KEY, func=controller_2w.toggle_pause)
 psyev.globalKeys.add(key="q", modifiers=["ctrl"], func=save_and_quit)
 
-controller_1w.run_experiment()
-controller_1w.logger.contdf.to_csv("testcont_1w.csv")
-controller_1w.logger.statesdf.to_csv("teststates_1w.csv")
+
+if not subinfo["debug"] or not stimpars["skip_oneword"]:
+    controller_1w.run_experiment()
+    if subinfo["debug"]:
+        controller_2w.logger.contdf.to_csv("testcont_1w.csv")
+        controller_2w.logger.statesdf.to_csv("teststates_1w.csv")
+    else:
+        controller_2w.logger.save(f"oneword_{subinfo['subject']}_{subinfo['date']}.pkl")
 window.close()

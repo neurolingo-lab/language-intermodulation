@@ -13,6 +13,10 @@ WORD_DUR = 2.1
 ITI_BOUNDS = [1.0, 3.0]
 FIXATION_DUR = 0.5
 
+PAUSE_KEY = "4"
+INTERTASK_TEXT = "Part 1 Done! Press the pause button to continue once you're ready."
+INTERTASK_TEXT2 = "Please let the experimenter know you're ready and the task will start."
+
 # Debug parameters
 debug = SimpleNamespace(
     N_BLOCKS=1,
