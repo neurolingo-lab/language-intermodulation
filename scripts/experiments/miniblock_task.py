@@ -41,6 +41,7 @@ if dialog.OK:
             "framerate": spec.debug.FRAMERATE,
             "f1": spec.debug.FREQUENCIES[0],
             "f2": spec.debug.FREQUENCIES[1],
+            "n_mini": None,
             "skip_twoword": False,
             "skip_oneword": False,
         }
@@ -83,6 +84,14 @@ onewords, twowords, allwords = imu.load_prep_words(
     miniblock_len=spec.MINIBLOCK_LEN,
     freqs=[stimpars["f1"], stimpars["f2"]],
 )
+if subinfo["debug"] and stimpars["n_mini"] is not None:
+    maxmini = stimpars["n_mini"]
+    twowords = twowords.query(f"miniblock < {maxmini}")
+    onewords = onewords.query(f"miniblock < {maxmini}")
+
+blocktrials_2w = twowords["miniblock"].max() + 1
+blocktrials_1w = onewords["miniblock"].max() + 1
+
 
 ########################################
 ## Initialize the window and triggers ##
@@ -105,7 +114,10 @@ else:
 if not hasattr(spec, "TRIGGER") or spec.TRIGGER is None:
     trigger = MockTrigger()
 else:
-    trigger = ParallelPortTrigger(spec.TRIGGER)
+    try:
+        trigger = ParallelPortTrigger(spec.TRIGGER)
+    except RuntimeError:
+        trigger = MockTrigger()
 
 if not subinfo["debug"]:
     wordframes = spec.WORD_DUR * framerate
@@ -144,26 +156,20 @@ query_cats = [
     ("nonword", "unseen"),
 ]
 
-query_tracker = {
-    "miniblock": 0,
-    "last_words": twowords.query("miniblock == 0"),
-    "categories": query_cats.copy(),
-    "remaining_cat": query_cats.copy(),
-}
-query_tracker_1w = {
-    "miniblock": 0,
-    "last_words": onewords.query("miniblock == 0"),
-    "categories": query_cats.copy(),
-    "remaining_cat": query_cats.copy(),
-}
-
-qchoice = partial(imu.set_next_query_miniblock, allwords=allwords, rng=rng)
-
-qnext = partial(imu.next_state_query_miniblock, query_tracker)
-qupdate = partial(imu.update_tracker_miniblock, query_tracker)
-
-qnext_1w = partial(imu.next_state_query_miniblock, query_tracker_1w)
-qupdate_1w = partial(imu.update_tracker_miniblock, query_tracker_1w)
+query_tracker_2w = imu.QueryTracker(
+    miniblock=0,
+    last_words=twowords.query("miniblock == 0"),
+    allwords=allwords,
+    categories=query_cats.copy(),
+    rng=rng,
+)
+query_tracker_1w = imu.QueryTracker(
+    miniblock=0,
+    last_words=onewords.query("miniblock == 0"),
+    allwords=allwords,
+    categories=query_cats.copy(),
+    rng=rng,
+)
 
 #################################################
 ## Generate states to use for both experiments ##
@@ -219,22 +225,20 @@ fixation = ims.FixationState(
 query = ims.QueryState(
     next=["query", "iti"],
     dur=spec.WORD_DUR,
-    transition=qnext,
+    transition=query_tracker_2w.next_state,
     window=window,
     stim=imst.QueryStim(window),
     clock=clock,
-    query_tracker=query_tracker,
-    update_fn=qchoice,
+    update_fn=query_tracker_2w.set_next_query,
 )
 query_1w = ims.QueryState(
     next=["query", "iti"],
     dur=spec.WORD_DUR,
-    transition=qnext_1w,
+    transition=query_tracker_1w.next_state,
     window=window,
     stim=imst.QueryStim(window),
     clock=clock,
-    query_tracker=query_tracker_1w,
-    update_fn=qchoice,
+    update_fn=query_tracker_1w.set_next_query,
 )
 iti = ims.InterTrialState(
     next="fixation",
@@ -243,8 +247,8 @@ iti = ims.InterTrialState(
     trigger=trigger,
     trigger_val=spec.TRIGGERS.ITI,
 )
-twoword.end_calls.insert(0, (qupdate, (twoword,)))
-oneword.end_calls.insert(0, (qupdate_1w, (oneword,)))
+twoword.end_calls.insert(0, (query_tracker_2w.update_miniblock, (twoword,)))
+oneword.end_calls.insert(0, (query_tracker_1w.update_miniblock, (oneword,)))
 states_2w = {
     "words": twoword,
     "fixation": fixation,
@@ -272,7 +276,7 @@ def trigger_val_query(state: ims.QueryState, triggers):
 
 def trigger_val_twoword(state: ims.TwoWordMiniblockState, triggers):
     leftword_f = state.frequencies["word1"]
-    f1left = leftword_f == spec.FREQUENCIES[0]
+    f1left = leftword_f == stimpars["f1"]
     if state.condition == "phrase":
         if f1left:
             return triggers.TWOWORD.PHRASE.F1LEFT
@@ -301,6 +305,34 @@ def trigger_cond_twoword(state: ims.TwoWordMiniblockState):
         return False
 
 
+def trigger_val_oneword(state: ims.OneWordMiniblockState, triggers):
+    f1 = state.frequencies["word1"] == stimpars["f1"]
+    if state.condition == "word":
+        if f1:
+            return triggers.ONEWORD.WORD.F1
+        else:
+            return triggers.ONEWORD.WORD.F2
+    elif state.condition == "non-word":
+        if f1:
+            return triggers.ONEWORD.NONWORD.F1
+        else:
+            return triggers.ONEWORD.NONWORD.F2
+    else:
+        freq = state.frequencies["word1"]
+        f1def, f2def = stimpars["f1"], stimpars["f2"]
+        raise ValueError(
+            f"Invalid cond/freq pair: {state.condition}, {freq:0.3f} Hz.\n"
+            f"Possible tags are {f1def:0.3f} and {f2def:0.3f} "
+        )
+
+
+def trigger_cond_oneword(state: ims.OneWordMiniblockState):
+    if any([upd[1] == "text" for upd in state._update_log]):
+        return True
+    else:
+        return False
+
+
 twoword_starttrig = pe.TriggerTimeLogItem(
     "trigger_time",
     True,
@@ -316,6 +348,23 @@ twoword_updatetrig = pe.TriggerTimeLogItem(
     cond=partial(trigger_cond_twoword, state=twoword),
 )
 twoword.loggables.add("update", twoword_updatetrig)
+
+oneword_starttrig = pe.TriggerTimeLogItem(
+    "trigger_time",
+    True,
+    trigger=trigger,
+    value=partial(trigger_val_oneword, triggers=spec.TRIGGERS, state=oneword),
+)
+oneword.loggables.add("start", oneword_starttrig)
+oneword_updatetrig = pe.TriggerTimeLogItem(
+    "update_trigger_t",
+    False,
+    trigger=trigger,
+    value=partial(trigger_val_oneword, triggers=spec.TRIGGERS, state=oneword),
+    cond=partial(trigger_cond_oneword, state=oneword),
+)
+oneword.loggables.add("update", oneword_updatetrig)
+
 querytrig = pe.TriggerTimeLogItem(
     "trigger_time",
     True,
@@ -323,6 +372,19 @@ querytrig = pe.TriggerTimeLogItem(
     value=partial(trigger_val_query, state=query, triggers=spec.TRIGGERS),
 )
 query.loggables.add("start", querytrig)
+querytrig_1w = pe.TriggerTimeLogItem(
+    "trigger_time",
+    True,
+    trigger=trigger,
+    value=partial(trigger_val_query, state=query_1w, triggers=spec.TRIGGERS),
+)
+query_1w.loggables.add("start", querytrig_1w)
+
+
+def newblock_trig(trigger, triggers):
+    trigger.signal(triggers.BLOCKEND)
+    return
+
 
 ########################################################
 ## Create controller, then add pause and quit hotkeys ##
@@ -344,9 +406,10 @@ controller_2w = pc.ExperimentController(
     start="fixation",
     logger=pe.ExperimentLog(clock),
     clock=clock,
-    trial_endstate="words",
+    trial_endstate="iti",
     N_blocks=spec.N_BLOCKS,
-    K_blocktrials=twowords["miniblock"].max(),
+    K_blocktrials=blocktrials_2w,
+    block_calls=[partial(newblock_trig, trigger=trigger, triggers=spec.TRIGGERS)],
 )
 controller_1w = pc.ExperimentController(
     states=states_1w,
@@ -354,9 +417,10 @@ controller_1w = pc.ExperimentController(
     start="fixation",
     logger=pe.ExperimentLog(clock),
     clock=clock,
-    trial_endstate="words",
-    N_blocks=spec.N_BLOCKS,
-    K_blocktrials=onewords["miniblock"].max(),
+    trial_endstate="iti",
+    N_blocks=spec.N_1W_BLOCKS,
+    K_blocktrials=blocktrials_1w,
+    block_calls=[partial(newblock_trig, trigger=trigger, triggers=spec.TRIGGERS)],
 )
 
 controller = controller_2w

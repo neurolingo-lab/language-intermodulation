@@ -1,6 +1,7 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Hashable, Literal, Mapping
+from typing import Hashable, Literal
 
 import numpy as np
 import pandas as pd
@@ -12,120 +13,98 @@ from intermodulation.freqtag_spec import (
 )
 from intermodulation.states import (
     QueryState,
-    TwoWordMiniblockState,
 )
 
 
-def update_tracker_miniblock(q_track: Mapping, state: TwoWordMiniblockState):
-    """
-    Update the query tracker (see `set_next_query_miniblock`) with the current miniblock
-    number and set of words.
+@dataclass
+class QueryTracker:
+    miniblock: int
+    categories: list[tuple[Literal["word", "non-word"], Literal["seen", "unseen"]]]
+    last_words: pd.DataFrame
+    allwords: pd.DataFrame
+    rng: np.random.RandomState
 
-    Parameters
-    ----------
-    q_track : Mapping
-        Dictionary of query tracking information. See `set_next_query_miniblock` for details.
-    state : TwoWordMiniblockState
-        The miniblock stimulus state that should be used to update the query tracker.
-    """
-    if q_track["miniblock"] != state.miniblock_idx:
-        q_track["miniblock"] = state.miniblock_idx
-        q_track["last_words"] = state.wordset
-    return
+    def __post_init__(self):
+        self.candidates: dict[tuple[str, str], pd.DataFrame] = {}
+        self.remaining_cat: list[tuple[Literal["word", "non-word"], Literal["seen", "unseen"]]] = (
+            self._get_valid_cats()
+        )
 
+    def update_miniblock(self, state):
+        if self.miniblock != state.miniblock_idx:
+            self.miniblock = state.miniblock_idx
+            self.last_words = state.wordset
+        return
 
-def next_state_query_miniblock(
-    q_track: Mapping,
-    nexts: Sequence[Hashable] = ["query", "iti"],
-    query_id: Hashable = "query",
-    iti_id="iti",
-):
-    """
-    Set whether the next state should be a query or the ITI state based on the current miniblock
+    def next_state(
+        self, nexts: Sequence[Hashable] = ["query", "iti"], query_id="query", iti_id="iti"
+    ):
+        # If we're on the last of our categories, return the index of the ITI state (end queries).
+        # Otherwise return the index of the query state (keep querying).
+        if len(self.remaining_cat) == 1:
+            return nexts.index(iti_id)
+        return nexts.index(query_id)
 
-    Parameters
-    ----------
-    q_track : Mapping
-        Tracking dictionary for the query states. See `set_next_query_miniblock` for details.
-    nexts : Sequence[Hashable], optional
-        A sequence of the next possible state IDs, by default ["query", "iti"]
-    query_id : Hashable, optional
-        The ID of the query state, to be returned if we haven't reached our target number of
-        queries, by default "query"
-    iti_id : str, optional
-        The ID of the ITI state, to be returned if we have queried all categories, by default "iti"
-    """
-    if len(q_track["remaining_cat"]) == 1:
-        return nexts.index(iti_id)
-    return nexts.index(query_id)
+    def set_next_query(self, state: QueryState):
+        # See how many categories are left to query. If there's none, we're at the start of a new
+        # query set and need to regenerate the categories and candidates.
+        rem_cat = len(self.remaining_cat)
+        first_q = self.miniblock == 0 and rem_cat == 4
+        if rem_cat == 0 or first_q:
+            if not first_q:
+                self.remaining_cat = self._get_valid_cats()
+            candidates = self._set_candidates(self.allwords)
+            self.candidates = candidates
 
+        # Pop the next category to query and set the test word and truth value in the passed state
+        qcat = self.remaining_cat.pop()
+        catdf = self.candidates[qcat]
+        state.test_word = catdf.sample(random_state=self.rng)["word"].values[0]
+        seen = qcat[1]
 
-def set_next_query_miniblock(
-    q_track: Mapping,
-    state: QueryState,
-    allwords: pd.DataFrame,
-    rng: np.random.RandomState,
-):
-    """
-    Function to get the next query following the miniblock for the miniblock task. Will use the
-    query tracker to keep track of which categories are desired (see q_track below), and set the
-    test word and truth value in the passed QueryState object.
+        wordcols = ["w1", "w2"] if "w2" in self.last_words.columns else ["w1"]
+        if seen == "seen":
+            assert state.test_word in self.last_words[wordcols].values.flat
+        else:
+            assert state.test_word not in self.last_words[wordcols].values.flat
 
-    Parameters
-    ----------
-    q_track : Mapping
-        Dictionary storing the information about queries between state runs. Must have keys
-        'query_idx', 'query_order', 'categories', 'last_words', 'candidates', 'miniblock'.
-         - 'query_idx' is an integer tracking the number of queries so far
-         - 'query_order' is a list of indices defining the order of categories to query, permuted by
-            this function once all categories have been used
-         - 'categories' is a list of 2-tuples defining the categories to query, which are
-            combinations of 'word' or 'non-word' and 'seen' or 'unseen'.
-         - 'last_words' is a DataFrame storing the last words presented in the previous miniblock,
-            and should be updated after each miniblock is completed by another function.
-         - 'candidates' is a dictionary storing the candidate words for each category, sampled from
-            the 'allwords' DataFrame
-         - 'miniblock' is an integer tracking the current miniblock number
-    state : QueryState
-        The query state that should be updated with the next test word
-    allwords : pd.DataFrame
-        All words used in the current task, to define the 'seen'/'unseen' status of the words
-    rng : np.random.RandomState
-        Random generator to use
-    """
-    # Store some variables locally for easier access
-    rem_cat = len(q_track["remaining_cat"])
-    # If we have queried all categories, permute the order again and get new cands
-    if rem_cat == 0 or (q_track["miniblock"] == 0 and rem_cat == 4):
-        q_track["remaining_cat"] = [q_track["categories"][i] for i in rng.permutation(4)]
+        state.truth = True if seen == "seen" else False
+        return
+
+    def _set_candidates(self, allwords: pd.DataFrame):
         candidates = {}
-        for cat in q_track["remaining_cat"]:
-            # Set the mask of words that meet our word/non-word choices
+        for cat in self.remaining_cat:
+            if cat in candidates:
+                continue
             if cat[0] == "word":
                 wordmask = allwords["cond"] == cat[0]
             else:
                 wordmask = allwords["cond"] != "word"
-            # Set the columns containing our last seen words. If we have a second word, use it
             columns = ["w1"]
-            if "w2" in q_track["last_words"].columns:
+            if "w2" in self.last_words.columns:
                 columns.append("w2")
-            # Set the mask of words that were seen or unseen in the last miniblock
-            seenmask = allwords["word"].isin(q_track["last_words"][columns].values.flat)
+            seenmask = allwords["word"].isin(self.last_words[columns].values.flat)
             if cat[1] == "unseen":
                 seenmask = ~seenmask
-            # Sample the candidates for this category
-            candidates[cat] = allwords[wordmask & seenmask].copy().sample(frac=1, random_state=rng)
-        q_track["candidates"] = candidates  # Store the candidates for the next queries
-    qcat = q_track["remaining_cat"].pop()
-    # Set the next word to be tested and whether the correct response is True (seen) or False
-    catdf = q_track["candidates"][qcat]
-    if len(catdf) == 0:
-        set_next_query_miniblock(q_track, state, allwords, rng)
-    else:
-        state.test_word = catdf.sample(random_state=rng)["word"].values[0]
-        seen = qcat[1]
-        state.truth = True if seen == "seen" else False
-    return
+            candidates[cat] = (
+                allwords[wordmask & seenmask].copy().sample(frac=1, random_state=self.rng)
+            )
+        return candidates
+
+    def _get_valid_cats(self):
+        if any(self.last_words["condition"] == "non-word"):
+            if "w2" in self.last_words.columns:
+                return [self.categories[i] for i in np.random.permutation(4)]
+            else:
+                valid_qidx = np.array(
+                    [self.categories.index(cat) for cat in self.categories if cat[0] == "nonword"]
+                )
+        else:
+            valid_qidx = np.array(
+                [self.categories.index(cat) for cat in self.categories if cat[0] == "word"]
+            )
+        qidx = np.repeat(valid_qidx, 2)
+        return [self.categories[qidx[i]] for i in self.rng.permutation(4)]
 
 
 def shuffle_condition(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:

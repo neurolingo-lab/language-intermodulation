@@ -41,7 +41,7 @@ class StartStopTriggerLogMixin:
             )
         else:
             itemclass = pe.TimeLogItem
-        self.loggables = pe.Loggables(
+        triglog = pe.Loggables(
             start=[
                 itemclass(
                     name="start",
@@ -55,6 +55,8 @@ class StartStopTriggerLogMixin:
                 ),
             ],
         )
+        mergelog = triglog.merge(self.loggables)
+        self.loggables = mergelog
 
 
 @dataclass
@@ -307,7 +309,6 @@ class InterTrialState(ps.MarkovState, StartStopTriggerLogMixin):
 @dataclass
 class QueryState(ps.StimulusState, StartStopTriggerLogMixin):
     stim: ims.QueryStim = field(kw_only=True)
-    query_tracker: Mapping = field(kw_only=True)
     update_fn: callable = field(kw_only=True)
     query_kwargs: Mapping = field(kw_only=True, default_factory=dict)
 
@@ -317,7 +318,7 @@ class QueryState(ps.StimulusState, StartStopTriggerLogMixin):
 
         self.test_word = None
         self.truth = None
-        self.start_calls.insert(0, (self.update_fn, (self.query_tracker, self)))
+        self.start_calls.insert(0, (self.update_fn, (self,)))
         self.start_calls.insert(1, self._set_query)
         self.loggables.add(
             "start",
