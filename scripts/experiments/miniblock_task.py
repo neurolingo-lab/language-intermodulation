@@ -177,7 +177,7 @@ query_tracker_1w = imu.QueryTracker(
 
 twoword = ims.TwoWordMiniblockState(
     next="query",
-    dur=spec.WORD_DUR * spec.MINIBLOCK_LEN,
+    dur=spec.WORD_DUR * spec.MINIBLOCK_LEN + spec.WORD_DUR / 1.333333,
     window=window,
     framerate=framerate,
     stim=wordstim,
@@ -194,7 +194,7 @@ twoword = ims.TwoWordMiniblockState(
 )
 oneword = ims.OneWordMiniblockState(
     next="query",
-    dur=spec.WORD_DUR * spec.MINIBLOCK_LEN,
+    dur=spec.WORD_DUR * spec.MINIBLOCK_LEN + spec.WORD_DUR / 1.333333,
     window=window,
     framerate=framerate,
     stim=onewordstim,

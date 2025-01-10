@@ -16,8 +16,8 @@ FIXATION_DUR = 0.5
 PAUSE_KEY = "4"
 TASK1_EXPL = dict(
     text="This experiment will begin with a dot on the screen.\n\n Stare at the dot when you see it, "
-    "and continue to stare at the dot when words appear.\n\nSometimes these words will be "
-    "followed by questions.\n\nIf the question word was present in the last sequence of words you just saw, "
+    "and continue to stare at the dot when words appear.\n\nThese words will be "
+    "followed by questions after a pause.\n\nIf the question word was present in the last sequence of words you just saw, "
     "press yes (index finger), otherwise press no (middle finger).",
     anchorHoriz="center",
     alignText="center",
