@@ -12,12 +12,13 @@ FREQUENCIES = [17.142857, 20.0]
 WORD_DUR = 2.1
 ITI_BOUNDS = [1.0, 3.0]
 FIXATION_DUR = 0.5
+QUERY_PAUSE_DUR = 1.0
 
 PAUSE_KEY = "4"
 TASK1_EXPL = dict(
     text="This experiment will begin with a dot on the screen.\n\n Stare at the dot when you see it, "
-    "and continue to stare at the dot when words appear.\n\nThese words will be "
-    "followed by questions after a pause.\n\nIf the question word was present in the last sequence of words you just saw, "
+    "and continue to stare at the dot when words appear.\nThese words will be "
+    "followed by a pause, then questions.\n\nIf the question word was present in the last sequence of words you just saw, "
     "press yes (index finger), otherwise press no (middle finger).",
     anchorHoriz="center",
     alignText="center",

@@ -176,7 +176,7 @@ query_tracker_1w = imu.QueryTracker(
 #################################################
 
 twoword = ims.TwoWordMiniblockState(
-    next="query",
+    next="querypause",
     dur=spec.WORD_DUR * spec.MINIBLOCK_LEN + spec.WORD_DUR / 1.333333,
     window=window,
     framerate=framerate,
@@ -193,7 +193,7 @@ twoword = ims.TwoWordMiniblockState(
     strict_freqs=False,
 )
 oneword = ims.OneWordMiniblockState(
-    next="query",
+    next="querypause",
     dur=spec.WORD_DUR * spec.MINIBLOCK_LEN + spec.WORD_DUR / 1.333333,
     window=window,
     framerate=framerate,
@@ -214,6 +214,19 @@ fixation = ims.FixationState(
     dur=2.0,
     stim=fixstim,
     window=window,
+    clock=clock,
+    loggables=pe.Loggables(
+        start=[pe.FunctionLogItem("state_start", True, clock.getTime, timely=True)],
+        end=[pe.FunctionLogItem("state_end", True, clock.getTime, timely=True)],
+    ),
+    trigger=trigger,
+    trigger_val=spec.TRIGGERS.FIXATION,
+)
+querypause = ims.FixationState(
+    next="query",
+    dur=spec.QUERY_PAUSE_DUR,
+    window=window,
+    stim=fixstim,
     clock=clock,
     loggables=pe.Loggables(
         start=[pe.FunctionLogItem("state_start", True, clock.getTime, timely=True)],
@@ -244,6 +257,10 @@ iti = ims.InterTrialState(
     next="fixation",
     duration_bounds=spec.ITI_BOUNDS,
     rng=rng,
+    loggables=pe.Loggables(
+        start=[pe.FunctionLogItem("state_start", True, clock.getTime, timely=True)],
+        end=[pe.FunctionLogItem("state_end", True, clock.getTime, timely=True)],
+    ),
     trigger=trigger,
     trigger_val=spec.TRIGGERS.ITI,
 )
@@ -252,12 +269,14 @@ oneword.end_calls.insert(0, (query_tracker_1w.update_miniblock, (oneword,)))
 states_2w = {
     "words": twoword,
     "fixation": fixation,
+    "querypause": querypause,
     "query": query,
     "iti": iti,
 }
 states_1w = {
     "words": oneword,
     "fixation": fixation,
+    "querypause": querypause,
     "query": query_1w,
     "iti": iti,
 }
