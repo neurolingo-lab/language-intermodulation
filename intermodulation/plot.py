@@ -71,7 +71,8 @@ def itc_wholetrial_topo(
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("ITC")
 
-    itertopo = mne.viz.iter_topography(info, on_pick=plotcallback)
+    fig = plt.figure(figsize=(16, 16), dpi=600)
+    itertopo = mne.viz.iter_topography(info, on_pick=plotcallback, fig=fig)
 
     for ax, idx in itertopo:
         ax.plot(itcs.columns.to_numpy(), itcs.iloc[idx], color="white", lw=1.0)
@@ -80,7 +81,6 @@ def itc_wholetrial_topo(
         if vlines is not None:
             for vline in vlines:
                 ax.axvline(vline, color="w", linestyle="--")
-    fig = plt.gcf()
     return fig
 
 
@@ -143,3 +143,47 @@ def itc_singlefreq_topo(
 
     fig.suptitle(f"ITC at {freq:.2f} Hz")
     return fig
+
+
+def plot_snr(psds, snrs, freqs, fmin, fmax, titleannot="", fig=None, axes=None, tagfreq=None):
+    if len(titleannot) > 0:
+        titleannot = ": " + titleannot
+    if fig is None:
+        fig, axes = plt.subplots(2, 1, sharex="all", sharey="none", figsize=(8, 5))
+    freq_range = range(
+        np.where(np.floor(freqs) == fmin)[0][0], np.where(np.ceil(freqs) == fmax - 1)[0][0]
+    )
+
+    psds_plot = 10 * np.log10(psds)
+    psds_mean = psds_plot.mean(axis=(0, 1))[freq_range]
+    psds_std = psds_plot.std(axis=(0, 1))[freq_range]
+    axes[0].plot(freqs[freq_range], psds_mean, color="b")
+    axes[0].fill_between(
+        freqs[freq_range], psds_mean - psds_std, psds_mean + psds_std, color="b", alpha=0.2
+    )
+    axes[0].set(title="PSD spectrum" + titleannot, ylabel="Power Spectral Density [dB]")
+
+    # SNR spectrum
+    snr_mean = snrs.mean(axis=(0, 1))[freq_range]
+    snr_std = snrs.std(axis=(0, 1))[freq_range]
+
+    axes[1].plot(freqs[freq_range], snr_mean, color="r")
+    axes[1].fill_between(
+        freqs[freq_range], snr_mean - snr_std, snr_mean + snr_std, color="r", alpha=0.2
+    )
+    axes[1].set(
+        title="SNR spectrum" + titleannot,
+        xlabel="Frequency [Hz]",
+        ylabel="SNR",
+        ylim=[-2, 30],
+        xlim=[fmin, fmax],
+    )
+    if tagfreq is not None:
+        axes[0].vlines(tagfreq, *axes[0].get_ylim(), color="r", linestyle="--")
+        axes[1].vlines(tagfreq, 0, 8, color="r", linestyle="--")
+
+    axes[1].set_xlim([5, 25])
+    axes[1].set_ylim([0, 8])
+
+    fig.show()
+    return fig, axes

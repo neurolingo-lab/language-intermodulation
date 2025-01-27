@@ -3,6 +3,60 @@ import numpy as np
 import pandas as pd
 
 
+def miniblock_events(raw: mne.io.Raw, offset=0):
+    oldannot = raw.annotations.copy()
+    events = list(mne.events_from_annotations(raw))
+    # Fix the event names to be MNE-compatible
+    events[1] = {k.replace("_", "/"): v for k, v in events[1].items()}
+    newev = []
+    conds = [
+        "ONEWORD/NONWORD/F1",
+        "ONEWORD/NONWORD/F2",
+        "ONEWORD/WORD/F1",
+        "ONEWORD/WORD/F2",
+        "TWOWORD/NONPHRASE/F1LEFT",
+        "TWOWORD/NONPHRASE/F1RIGHT",
+        "TWOWORD/NONWORD/F1LEFT",
+        "TWOWORD/NONWORD/F1RIGHT",
+        "TWOWORD/PHRASE/F1LEFT",
+        "TWOWORD/PHRASE/F1RIGHT",
+    ]
+    oldkeys = list(events[1].keys())
+    for k in oldkeys:
+        if k in conds:
+            newname = "MINIBLOCK/" + k
+            event_id = events[1][k]
+            events[1][newname] = event_id + 100
+    revlut = {v: k for k, v in events[1].items()}
+    for i in range(len(events[0])):
+        currev = events[0][i]
+        if revlut[currev[2]] not in conds:
+            newev.append(currev.reshape(-1, 1))
+            continue
+        if not events[0][i - 1, 2] == currev[2]:
+            miniblock = currev.copy()
+            miniblock[-1] += 100
+            miniblock[0] += offset - 1
+            newev.append(miniblock.reshape(-1, 1))
+        currev[0] += offset
+        newev.append(currev.reshape(-1, 1))
+    newev = np.concat(newev, axis=-1).T
+
+    annot = mne.annotations_from_events(
+        events=newev, event_desc=revlut, sfreq=raw.info["sfreq"], first_samp=raw.first_samp
+    )
+
+    for i in oldannot:
+        if i["description"].find("BAD") != -1:
+            annot.append(
+                onset=i["onset"] - raw.first_samp / raw.info["sfreq"],
+                duration=i["duration"],
+                description=i["description"],
+            )
+
+    raw = raw.set_annotations(annot)
+
+
 def snr_spectrum(psd, noise_n_neighbor_freqs=1, noise_skip_neighbor_freqs=1):
     """Compute SNR spectrum from PSD spectrum using convolution.
 
