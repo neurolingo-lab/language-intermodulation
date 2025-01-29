@@ -8,13 +8,13 @@ from matplotlib import pyplot as plt
 
 def snr_topo(
     snrs: np.ndarray,
-    info: mne.Info,
+    epochs: mne.Epochs,
     freqs: np.ndarray,
     fmin: float | None = None,
     fmax: float | None = None,
     ymin: float | None = None,
     ymax: float | None = None,
-    picks: list[str] | None = None,
+    vlines: list | None = None,
 ):
     if ymin is None:
         ymin = snrs.min()
@@ -25,31 +25,28 @@ def snr_topo(
     if fmax is None:
         fmax = freqs.max()
 
-    show_fun = partial(
-        mne.viz.topo._plot_timeseries_unified,
-        data=[snrs],
-        times=[freqs],
-        color="w",
-        ylim=(ymin, ymax),
-    )
+    def plotcallback(ax, ch_idx):
+        ax.plot(freqs, snrs[ch_idx], color="w")
+        if vlines is not None:
+            for vline in vlines:
+                ax.axvline(vline, color="w", linestyle="--", alpha=0.5)
+        ax.set_ylim(ymin, ymax)
+        ax.set_xlim(fmin, fmax)
+        ax.set_xlabel("Frequency (Hz)")
+        ax.set_ylabel("SNR")
 
-    click_fun = partial(
-        mne.viz.topo._plot_timeseries,
-        data=[snrs],
-        times=[freqs],
-        color="w",
-    )
+    fig = plt.figure(figsize=(16, 16), dpi=600)
+    itertopo = mne.viz.iter_topography(epochs.info, on_pick=plotcallback, fig=fig)
 
-    fig = mne.viz.topo._plot_topo(
-        info,
-        times=(fmin, fmax),
-        show_func=show_fun,
-        click_func=click_fun,
-        layout=mne.channels.find_layout(info),
-        unified=True,
-        x_label="Frequency (Hz)",
-        y_label="SNR",
-    )
+    for ax, idx in itertopo:
+        mne.Epochs._keys_to_idx
+        ax.plot(freqs, snrs[idx], color="w", lw=0.5)
+        ax.set_ylim(ymin, ymax)
+        ax.set_xlim(fmin, fmax)
+        if vlines is not None:
+            for vline in vlines:
+                ax.axvline(vline, color="w", linestyle="--", alpha=0.5, lw=0.2)
+
     fig.show()
     return fig
 
@@ -60,7 +57,10 @@ def itc_wholetrial_topo(
     fmin: float | None = None,
     fmax: float | None = None,
     vlines: None | list = None,
+    picks: list[str] | None = None,
 ):
+    if picks is None:
+        picks = []
     def plotcallback(ax, ch_idx):
         ax.plot(itcs.columns.to_numpy(), itcs.iloc[ch_idx], color="w")
         if vlines is not None:
@@ -75,6 +75,8 @@ def itc_wholetrial_topo(
     itertopo = mne.viz.iter_topography(info, on_pick=plotcallback, fig=fig)
 
     for ax, idx in itertopo:
+        if itcs.index[idx] not in picks:
+            continue
         ax.plot(itcs.columns.to_numpy(), itcs.iloc[idx], color="white", lw=1.0)
         ax.set_ylim(0, 1)
         ax.set_xlim(fmin, fmax)
