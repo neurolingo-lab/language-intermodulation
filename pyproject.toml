@@ -67,3 +67,6 @@ typeCheckingMode = "off"
 
 [tool.pytest.ini_options]
 addopts = "--cov=intermodulation --cov-report xml:cov.xml"
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
