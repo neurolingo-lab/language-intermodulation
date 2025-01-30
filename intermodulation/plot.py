@@ -15,6 +15,7 @@ def snr_topo(
     ymin: float | None = None,
     ymax: float | None = None,
     vlines: list | None = None,
+    fig_kwargs: dict | None = None,
 ):
     if ymin is None:
         ymin = snrs.min()
@@ -24,6 +25,8 @@ def snr_topo(
         fmin = freqs.min()
     if fmax is None:
         fmax = freqs.max()
+    if fig_kwargs is None:
+        fig_kwargs = {"figsize": (16, 16), "dpi": 600}
 
     def plotcallback(ax, ch_idx):
         ax.plot(freqs, snrs[ch_idx], color="w")
@@ -35,7 +38,7 @@ def snr_topo(
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("SNR")
 
-    fig = plt.figure(figsize=(16, 16), dpi=600)
+    fig = plt.figure(**fig_kwargs)
     itertopo = mne.viz.iter_topography(epochs.info, on_pick=plotcallback, fig=fig)
 
     for ax, idx in itertopo:
@@ -45,7 +48,7 @@ def snr_topo(
         ax.set_xlim(fmin, fmax)
         if vlines is not None:
             for vline in vlines:
-                ax.axvline(vline, color="w", linestyle="--", alpha=0.5, lw=0.2)
+                ax.axvline(vline, color="w", linestyle="--", alpha=0.75, lw=0.3)
 
     fig.show()
     return fig
@@ -56,33 +59,42 @@ def itc_wholetrial_topo(
     info: mne.Info,
     fmin: float | None = None,
     fmax: float | None = None,
-    vlines: None | list = None,
+    ymin: float | None = None,
+    ymax: float | None = None,
+    vlines: list | None = None,
     picks: list[str] | None = None,
+    fig_kwargs: dict | None = None,
 ):
     if picks is None:
-        picks = []
+        picks = info.ch_names
+    if ymin is None:
+        ymin = 0.0
+    if ymax is None:
+        ymax = 1.0
+    if fig_kwargs is None:
+        fig_kwargs = {"figsize": (16, 16), "dpi": 600}
     def plotcallback(ax, ch_idx):
         ax.plot(itcs.columns.to_numpy(), itcs.iloc[ch_idx], color="w")
         if vlines is not None:
             for vline in vlines:
                 ax.axvline(vline, color="r", linestyle="--")
-        ax.set_ylim(0, 1)
+        ax.set_ylim(ymin, ymax)
         ax.set_xlim(fmin, fmax)
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("ITC")
 
-    fig = plt.figure(figsize=(16, 16), dpi=600)
+    fig = plt.figure(**fig_kwargs)
     itertopo = mne.viz.iter_topography(info, on_pick=plotcallback, fig=fig)
 
     for ax, idx in itertopo:
         if itcs.index[idx] not in picks:
             continue
-        ax.plot(itcs.columns.to_numpy(), itcs.iloc[idx], color="white", lw=1.0)
+        ax.plot(itcs.columns.to_numpy(), itcs.iloc[idx], color="white", lw=0.5)
         ax.set_ylim(0, 1)
         ax.set_xlim(fmin, fmax)
         if vlines is not None:
             for vline in vlines:
-                ax.axvline(vline, color="w", linestyle="--")
+                ax.axvline(vline, color="w", linestyle="--", lw=0.3, alpha=0.75)
     return fig
 
 
@@ -153,7 +165,7 @@ def plot_snr(psds, snrs, freqs, fmin, fmax, titleannot="", fig=None, axes=None, 
     if fig is None:
         fig, axes = plt.subplots(2, 1, sharex="all", sharey="none", figsize=(8, 5))
     freq_range = range(
-        np.where(np.floor(freqs) == fmin)[0][0], np.where(np.ceil(freqs) == fmax - 1)[0][0]
+        np.flatnonzero(np.floor(freqs) == fmin)[0], np.flatnonzero(np.ceil(freqs) == fmax)[-1]
     )
 
     psds_plot = 10 * np.log10(psds)
@@ -177,14 +189,12 @@ def plot_snr(psds, snrs, freqs, fmin, fmax, titleannot="", fig=None, axes=None, 
         title="SNR spectrum" + titleannot,
         xlabel="Frequency [Hz]",
         ylabel="SNR",
-        ylim=[-2, 30],
-        xlim=[fmin, fmax],
     )
     if tagfreq is not None:
-        axes[0].vlines(tagfreq, *axes[0].get_ylim(), color="r", linestyle="--")
-        axes[1].vlines(tagfreq, 0, 8, color="r", linestyle="--")
+        axes[0].axvline(tagfreq, color="r", linestyle="--")
+        axes[1].axvline(tagfreq, color="r", linestyle="--")
 
-    axes[1].set_xlim([5, 25])
+    axes[1].set_xlim([fmin, fmax])
     axes[1].set_ylim([0, 8])
 
     fig.show()

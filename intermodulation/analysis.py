@@ -115,6 +115,7 @@ def itc_epochs(
     fmax: float,
     tmin: float = None,
     tmax: float = None,
+    n_ministim: int = 10,
     n_jobs=-1,
 ):
     picks = mne.pick_types(epochs.info, meg=True, exclude=[])
@@ -123,7 +124,7 @@ def itc_epochs(
         method="welch",
         n_fft=int(epochs.info["sfreq"] * (tmax - tmin)),
         n_overlap=0,
-        n_per_seg=None,
+        n_per_seg=int(epochs.info["sfreq"] * (tmax - tmin) / n_ministim),
         tmin=tmin,
         tmax=tmax,
         fmin=fmin,
