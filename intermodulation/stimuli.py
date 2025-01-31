@@ -10,18 +10,6 @@ import psystate.stimuli as pst
 from intermodulation.freqtag_spec import DOT_CONFIG, TEXT_CONFIG
 
 @dataclass
-class TwoWordStim(ics.StatefulStim):
-    win: psychopy.visual.Window
-    word1: str
-    word2: str
-    separation: float
-    fixation_dot: bool = True
-    reporting_pix: bool = False
-    reporting_pix_size: int = 4
-    text_config: Mapping = field(default_factory=TEXT_CONFIG.copy)
-    dot_config: Mapping = field(default_factory=DOT_CONFIG.copy)
-
-@dataclass
 class TwoWordStim(pst.StatefulStim):
     win: psychopy.visual.Window
     word1: str
