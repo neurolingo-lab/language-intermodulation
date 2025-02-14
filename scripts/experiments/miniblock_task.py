@@ -237,7 +237,7 @@ querypause = ims.FixationState(
 )
 query = ims.QueryState(
     next=["query", "iti"],
-    dur=spec.WORD_DUR,
+    dur=spec.QUERY_DUR,
     transition=query_tracker_2w.next_state,
     window=window,
     stim=imst.QueryStim(window),
