@@ -44,7 +44,7 @@ class StartStopTriggerLogMixin:
         triglog = pe.Loggables(
             start=[
                 itemclass(
-                    name="start",
+                    name="trig_start",
                     unique=True,
                 )
             ],
