@@ -5,28 +5,40 @@ import mne_bids
 import numpy as np
 import pandas as pd
 
-from intermodulation.freqtag_spec import LUT_TRIGGERS, TRIGGERS, VALID_TRANS, nested_deepkeys
+from intermodulation.freqtag_spec import LUT_TRIGGERS
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--bids_root", type=str, required=True)
     parser.add_argument("--subject_id", type=str, required=True)
     parser.add_argument("--session_id", type=str, required=True)
+    parser.add_argument("--run", type=str, default=None)
     parser.add_argument("--task", type=str, default="syntaxIM")
-    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--proc", type=str, default=None)
     parser.add_argument("--stim_channel", type=str, default="STI102")
-    parser.add_argument("--tmpfix", action="store_true")
+    parser.add_argument("--ev-offset", type=int, default=0)
+    parser.add_argument("--miniblock-events", action="store_true")
+    parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--overwrite-tsv", action="store_true")
+    parser.add_argument("--overwrite-fif", action="store_true")
+    parser.add_argument("--stepfix", action="store_true")
     args = parser.parse_args()
+
+    deriv = args.proc is not None
 
     bids_path = mne_bids.BIDSPath(
         subject=args.subject_id,
         session=args.session_id,
         task=args.task,
+        run=args.run,
+        processing=args.proc,
         root=args.bids_root,
         datatype="meg",
+        suffix="meg" if deriv is None else "raw",
+        check=True if deriv is None else False,
     )
 
-    raw = mne.io.read_raw_fif(bids_path.copy().update(suffix="meg", extension=".fif", split="01"))
+    raw = mne.io.read_raw_fif(bids_path.copy().update(extension=".fif", split="01"), preload=True)
     events = mne.find_events(
         raw,
         stim_channel=args.stim_channel,
@@ -35,55 +47,55 @@ if __name__ == "__main__":
         shortest_event=1,
     )
     evdf = pd.DataFrame(events, columns=["sample", "v1", "v2"])
+    if args.stepfix:
+        for i in evdf.index:
+            if evdf.at[i, "v1"] != 0:
+                evdf.at[i - 1, "v2"] = evdf.at[i, "v2"]
+        evdf = evdf[evdf["v1"] == 0].copy().reset_index()
     lut_triggers = {k: "/".join(v) for k, v in LUT_TRIGGERS.items()}
+    if args.miniblock_events:
+        for k, v in lut_triggers.items():
+            if v.split("/")[0] in ("ONEWORD", "TWOWORD"):
+                lut_triggers[k + 100] = "MINIBLOCK/" + v
+
     evdf["label1"] = evdf["v1"].map(lut_triggers)
     evdf["label2"] = evdf["v2"].map(lut_triggers)
     evdf["last"] = np.roll(evdf["label2"].values, 1)
 
-    if args.tmpfix:
-        VALID_TRANS = list(VALID_TRANS)
-        VALID_TRANS.extend(
-            (("/".join(k), "ITI") for k in nested_deepkeys(TRIGGERS) if k[0] == "ONEWORD")
-        )
-
-    evdf["valid"] = evdf.apply(lambda x: (x["last"], x["label2"]) in VALID_TRANS, axis=1)
-    remidx = []
-    for row in evdf[~evdf["valid"]].itertuples():
-        i = row.Index
-        if evdf["valid"].loc[i - 1] and evdf["valid"].loc[i + 1]:
-            remidx.append(i)
-        elif ~evdf["valid"].loc[i + 1] and evdf["valid"].loc[i - 1]:
-            remidx.append(i)
-        elif ~evdf["valid"].loc[i - 1]:
-            pass
-        else:
-            raise ValueError(f"Unhandled transition error at index {i}")
-    goodevs = evdf.drop(remidx)
-    goodevs["last"] = np.roll(goodevs["label2"].values, 1)
-    goodevs["valid"] = goodevs.apply(lambda x: (x["last"], x["label2"]) in VALID_TRANS, axis=1)
-    if not goodevs["valid"].all():
-        raise ValueError(
-            "Invalid transitions remain after cleanup. Remaining bad indices: ",
-            np.argwhere(~goodevs["valid"]),
-        )
-
-    goodevs.reset_index(inplace=True, drop=True)
     records = []
     offset = raw.first_samp / raw.info["sfreq"]
-    for row in goodevs.itertuples():
+    newevs = []
+    miniblock_onset = None
+    miniblock_sample = None
+    for row in evdf.itertuples():
         if row.label2 in ("STATEEND", "TRIALEND", "BLOCKEND"):
             continue
-        if goodevs.at[row.Index + 1, "label2"] in ("STATEEND", "TRIALEND", "BLOCKEND"):
-            end = goodevs.at[row.Index + 1, "sample"] / raw.info["sfreq"] + offset
-        else:
-            if args.tmpfix and row.label2.split("/")[0] == "ONEWORD":
-                end = goodevs.at[row.Index + 1, "sample"] / raw.info["sfreq"] + offset
-            else:
-                raise ValueError(
-                    f"Expected end of trial at index {row.Index + 1}, found "
-                    f"{goodevs.at[row.Index + 1, 'label2']}"
-                )
+        try:
+            end = evdf.at[row.Index + 1, "sample"] / raw.info["sfreq"] + offset
+        except KeyError:
+            end = raw.times[-1]
         onset = row.sample / raw.info["sfreq"] + offset
+        if args.miniblock_events and row.label2.split("/")[0] in ("ONEWORD", "TWOWORD"):
+            if row.last == "FIXATION":
+                miniblock_onset = onset
+                miniblock_sample = row.sample
+            elif row.last == row.label2 and evdf.at[row.Index + 1, "label2"] != row.label2:
+                if miniblock_sample is None:
+                    raise ValueError("MINIBLOCK start not found!")
+                records.append({
+                    "onset": miniblock_onset,
+                    "duration": onset - miniblock_onset,
+                    "trial_type": "MINIBLOCK/" + row.label2,
+                    "value": 100 + row.v2,
+                    "sample": miniblock_sample,
+                    "channel": args.stim_channel,
+                })
+                newevs.append(
+                    np.array([miniblock_sample + args.ev_offset, 0, 100 + row.v2]).reshape(1, 3)
+                )
+                miniblock_onset = None
+                miniblock_sample = None
+
         records.append(
             {
                 "onset": onset,
@@ -94,16 +106,47 @@ if __name__ == "__main__":
                 "channel": args.stim_channel,
             }
         )
+        newevs.append(np.array([row.sample + args.ev_offset, 0, row.v2]).reshape(1, 3))
+    newevs = np.concatenate(newevs, axis=0)
     bidsevs = pd.DataFrame.from_records(records)
     bidevpath = bids_path.copy().update(suffix="events", extension=".tsv")
-    if not len(bidevpath.match()) == 0:
+
+    if args.interactive:
+        raw.plot(
+            picks=["MISC010", args.stim_channel],
+            events=newevs,
+            event_id={v: k for k, v in lut_triggers.items()},
+            use_opengl=True,
+        )
+        good = input("Do the new events look right? Y/N")
+        if good.lower() != "y":
+            raise ValueError("Events not approved!")
+
+    if not len(bidevpath.match()) == 0 and not args.overwrite_fif:
         oldev = pd.read_csv(bidevpath.fpath, sep="\t")
         catevs = pd.concat([oldev, bidsevs], axis=0).reset_index(drop=True)
         if catevs.duplicated().any():
-            if not args.overwrite:
+            if not args.overwrite_tsv:
                 raise ValueError("Duplicate events found after concatenation!")
             else:
                 catevs.drop_duplicates(inplace=True)
         catevs.sort_values("onset", inplace=True)
-
-    bidsevs.to_csv(bidevpath.fpath, sep="\t", index=False)
+        catevs.to_csv(bidevpath.fpath, sep="\t", index=False)
+    if args.overwrite_fif:
+        annot = mne.annotations_from_events(
+            events=newevs,
+            event_desc=lut_triggers,
+            sfreq=raw.info["sfreq"],
+            first_samp=raw.first_samp,
+        )
+        raw.set_annotations(annot)
+        if deriv:
+            raw.save(
+                bids_path.copy().update(extension=".fif").fpath,
+                split_naming="bids",
+                overwrite=True,
+            )
+        else:
+            mne_bids.write_raw_bids(
+                raw, bids_path, overwrite=True, allow_preload=True, format="FIF"
+            )
