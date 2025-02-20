@@ -148,7 +148,19 @@ for f in FREQS:
 onewords = pd.concat(freqwords, ignore_index=True)
 
 blocktrials_1w = onewords["miniblock"].max() + 1
-
+pred_dur = (
+    blocktrials_1w
+    * (
+        spec.MINIBLOCK_LEN * spec.WORD_DUR
+        + (spec.ITI_BOUNDS[1] + spec.ITI_BOUNDS[0] / 2)
+        + spec.FIXATION_DUR
+    )
+    / 60
+)
+print(
+    f"Planning to run {blocktrials_1w} miniblocks of one-word stimuli, approx. "
+    f"{pred_dur} minutes of recording"
+)
 
 ########################################
 ## Initialize the window and triggers ##
