@@ -73,6 +73,7 @@ def itc_wholetrial_topo(
         ymax = 1.0
     if fig_kwargs is None:
         fig_kwargs = {"figsize": (16, 16), "dpi": 600}
+
     def plotcallback(ax, ch_idx):
         ax.plot(itcs.columns.to_numpy(), itcs.iloc[ch_idx], color="w")
         if vlines is not None:
