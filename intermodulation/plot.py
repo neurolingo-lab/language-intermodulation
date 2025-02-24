@@ -159,43 +159,56 @@ def itc_singlefreq_topo(
     return fig
 
 
-def plot_snr(psds, snrs, freqs, fmin, fmax, titleannot="", fig=None, axes=None, tagfreq=None):
+def plot_snr(
+    psds, snrs, freqs, fmin, fmax, titleannot="", fig=None, axes=None, tagfreq=None, plotpsd=False
+):
     if len(titleannot) > 0:
         titleannot = ": " + titleannot
     if fig is None:
-        fig, axes = plt.subplots(2, 1, sharex="all", sharey="none", figsize=(8, 5))
-    freq_range = range(
-        np.flatnonzero(np.floor(freqs) == fmin)[0], np.flatnonzero(np.ceil(freqs) == fmax)[-1]
-    )
+        nrows = 2 if plotpsd else 1
+        fig, axes = plt.subplots(nrows, 1, sharex=plotpsd)
+    if plotpsd and axes is not None:
+        if len(axes) != 2:
+            raise ValueError("If axes are passed, they must be a list of two axes objects.")
+    if not plotpsd:
+        if axes is not None and not isinstance(axes, plt.Axes):
+            raise ValueError("If not plotting PSD, axes must be a single axes object.")
+        axes = [axes]
 
-    psds_plot = 10 * np.log10(psds)
-    psds_mean = psds_plot.mean(axis=(0, 1))[freq_range]
-    psds_std = psds_plot.std(axis=(0, 1))[freq_range]
-    axes[0].plot(freqs[freq_range], psds_mean, color="b")
-    axes[0].fill_between(
-        freqs[freq_range], psds_mean - psds_std, psds_mean + psds_std, color="b", alpha=0.2
+    freq_range = range(
+        np.flatnonzero(np.floor(freqs) >= fmin)[0], np.flatnonzero(np.ceil(freqs) <= fmax)[-1]
     )
-    axes[0].set(title="PSD spectrum" + titleannot, ylabel="Power Spectral Density [dB]")
+    axidx = 0
+    if plotpsd:
+        psds_plot = 10 * np.log10(psds)
+        psds_mean = psds_plot.mean(axis=(0, 1))[freq_range]
+        psds_std = psds_plot.std(axis=(0, 1))[freq_range]
+        axes[axidx].plot(freqs[freq_range], psds_mean, color="b")
+        axes[axidx].fill_between(
+            freqs[freq_range], psds_mean - psds_std, psds_mean + psds_std, color="b", alpha=0.2
+        )
+        axes[axidx].set(title="PSD spectrum" + titleannot, ylabel="Power Spectral Density [dB]")
+        axidx += 1
 
     # SNR spectrum
     snr_mean = snrs.mean(axis=(0, 1))[freq_range]
     snr_std = snrs.std(axis=(0, 1))[freq_range]
 
-    axes[1].plot(freqs[freq_range], snr_mean, color="r")
-    axes[1].fill_between(
+    axes[axidx].plot(freqs[freq_range], snr_mean, color="r")
+    axes[axidx].fill_between(
         freqs[freq_range], snr_mean - snr_std, snr_mean + snr_std, color="r", alpha=0.2
     )
-    axes[1].set(
+    axes[axidx].set(
         title="SNR spectrum" + titleannot,
         xlabel="Frequency [Hz]",
         ylabel="SNR",
     )
     if tagfreq is not None:
-        axes[0].axvline(tagfreq, color="r", linestyle="--")
-        axes[1].axvline(tagfreq, color="r", linestyle="--")
+        if plotpsd:
+            axes[0].axvline(tagfreq, color="r", linestyle="--", alpha=0.5)
+        axes[axidx].axvline(tagfreq, color="r", linestyle="--", alpha=0.5)
 
-    axes[1].set_xlim([fmin, fmax])
-    axes[1].set_ylim([0, 8])
+    axes[axidx].set_xlim([fmin, fmax])
 
     fig.show()
     return fig, axes
