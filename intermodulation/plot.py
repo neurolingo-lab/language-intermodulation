@@ -1,5 +1,6 @@
 from functools import partial
 
+import matplotlib
 import mne
 import numpy as np
 import pandas as pd
@@ -16,6 +17,8 @@ def snr_topo(
     ymax: float | None = None,
     vlines: list | None = None,
     fig_kwargs: dict | None = None,
+    show_axes=False,
+    annot_max=False,
 ):
     if ymin is None:
         ymin = snrs.min()
@@ -39,18 +42,44 @@ def snr_topo(
         ax.set_ylabel("SNR")
 
     fig = plt.figure(**fig_kwargs)
-    itertopo = mne.viz.iter_topography(epochs.info, on_pick=plotcallback, fig=fig)
+    if show_axes:
+        spinecolor = "w"
+    else:
+        spinecolor = "k"
+    itertopo = mne.viz.iter_topography(
+        epochs.info, on_pick=plotcallback, fig=fig, axis_spinecolor=spinecolor
+    )
 
     for ax, idx in itertopo:
         mne.Epochs._keys_to_idx
-        ax.plot(freqs, snrs[idx], color="w", lw=0.5)
+        ax.plot(freqs, snrs[idx], color="w", lw=0.5)[0]
         ax.set_ylim(ymin, ymax)
         ax.set_xlim(fmin, fmax)
+        if show_axes:
+            ax.spines.top.set_visible(False)
+            ax.spines.right.set_visible(False)
+            ax.spines.bottom.set_linewidth(0.5)
+            ax.spines.bottom.set_alpha(0.5)
+            ax.spines.left.set_linewidth(0.5)
+            ax.spines.left.set_alpha(0.5)
         if vlines is not None:
             for vline in vlines:
                 ax.axvline(vline, color="w", linestyle="--", alpha=0.75, lw=0.3)
-
-    fig.show()
+        if annot_max:
+            maxidx = np.nanargmax(snrs[idx])
+            maxsnrF = freqs[maxidx]
+            maxsnr = snrs[idx][maxidx]
+            ax.annotate(
+                text=f"{maxsnr:.2f}, {maxsnrF:.2f}",
+                xy=(0.0, 0.8),
+                xycoords="axes fraction",
+                color="w",
+                fontsize=3,
+                annotation_clip=False,
+                visible=True,
+            )
+    if "inline" not in matplotlib.get_backend():
+        fig.show()
     return fig
 
 

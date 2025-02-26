@@ -91,7 +91,8 @@ if subinfo["debug"] and stimpars["n_mini"] is not None:
 
 blocktrials_2w = twowords["miniblock"].max() + 1
 blocktrials_1w = onewords["miniblock"].max() + 1
-
+print(f"Running miniblock task with {blocktrials_2w} miniblocks of two-word stimuli.")
+print(f"Running miniblock task with {blocktrials_1w} miniblocks of one-word stimuli.")
 
 ########################################
 ## Initialize the window and triggers ##
@@ -296,21 +297,25 @@ def trigger_val_query(state: ims.QueryState, triggers):
 def trigger_val_twoword(state: ims.TwoWordMiniblockState, triggers):
     leftword_f = state.frequencies["word1"]
     f1left = leftword_f == stimpars["f1"]
+    if state.wordset_idx == 0:
+        currtriggers = triggers.MINIBLOCK.TWOWORD
+    else:
+        currtriggers = triggers.TWOWORD
     if state.condition == "phrase":
         if f1left:
-            return triggers.TWOWORD.PHRASE.F1LEFT
+            return currtriggers.PHRASE.F1LEFT
         else:
-            return triggers.TWOWORD.PHRASE.F1RIGHT
+            return currtriggers.PHRASE.F1RIGHT
     elif state.condition == "non-phrase":
         if f1left:
-            return triggers.TWOWORD.NONPHRASE.F1LEFT
+            return currtriggers.NONPHRASE.F1LEFT
         else:
-            return triggers.TWOWORD.NONPHRASE.F1RIGHT
+            return currtriggers.NONPHRASE.F1RIGHT
     elif state.condition == "non-word":
         if f1left:
-            return triggers.TWOWORD.NONWORD.F1LEFT
+            return currtriggers.NONWORD.F1LEFT
         else:
-            return triggers.TWOWORD.NONWORD.F1RIGHT
+            return currtriggers.NONWORD.F1RIGHT
     else:
         raise ValueError(
             f"Invalid cond/freq pair: {state.condition}, {f1left}, freq left = {leftword_f}"
@@ -326,16 +331,20 @@ def trigger_cond_twoword(state: ims.TwoWordMiniblockState):
 
 def trigger_val_oneword(state: ims.OneWordMiniblockState, triggers):
     f1 = state.frequencies["word1"] == stimpars["f1"]
+    if state.wordset_idx == 0:
+        currtriggers = triggers.MINIBLOCK.ONEWORD
+    else:
+        currtriggers = triggers.ONEWORD
     if state.condition == "word":
         if f1:
-            return triggers.ONEWORD.WORD.F1
+            return currtriggers.WORD.F1
         else:
-            return triggers.ONEWORD.WORD.F2
+            return currtriggers.WORD.F2
     elif state.condition == "non-word":
         if f1:
-            return triggers.ONEWORD.NONWORD.F1
+            return currtriggers.NONWORD.F1
         else:
-            return triggers.ONEWORD.NONWORD.F2
+            return currtriggers.NONWORD.F2
     else:
         freq = state.frequencies["word1"]
         f1def, f2def = stimpars["f1"], stimpars["f2"]
@@ -480,6 +489,8 @@ if not subinfo["debug"] or not stimpars["skip_twoword"]:
     else:
         controller_2w.logger.save(f"twoword_{subinfo['subject']}_{subinfo['date']}.pkl")
 
+trigger.signal(spec.TRIGGERS.EXPEND)
+
 psyev.globalKeys.clear()
 pausetxt = psyv.TextStim(window, text=spec.INTERTASK_TEXT, pos=(0, 0), height=0.4)
 pausetxt.draw()
@@ -511,4 +522,6 @@ if not subinfo["debug"] or not stimpars["skip_oneword"]:
         controller_2w.logger.statesdf.to_csv("teststates_1w.csv")
     else:
         controller_2w.logger.save(f"oneword_{subinfo['subject']}_{subinfo['date']}.pkl")
+trigger.signal(spec.TRIGGERS.EXPEND)
+
 window.close()

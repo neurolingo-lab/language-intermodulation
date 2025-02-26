@@ -8,15 +8,15 @@ WORDSPATH = Path(__file__).parents[1]
 MINIBLOCK_LEN = 10
 N_BLOCKS = 3
 N_1W_BLOCKS = 2
-FREQUENCIES = [17.142857, 20.0]
-WORD_DUR = 2.1
+FREQUENCIES = [6, 7.05882353]
+WORD_DUR = 2.83333333333
 ITI_BOUNDS = [1.0, 3.0]
 FIXATION_DUR = 0.5
 QUERY_PAUSE_DUR = 1.0
 QUERY_DUR = 3.0
 LOCALIZER_MINIBLOCK_LEN = 12
 LOCALIZER_WORD_DUR = 0.2
-LOCALIZER_ITI_BOUNDS = [2.0, 4.0]
+LOCALIZER_ITI_BOUNDS = [0.4, 0.6]
 
 PAUSE_KEY = "4"
 TASK1_EXPL = dict(
@@ -166,7 +166,38 @@ TRIGGERS = AttriDict(
             F2=43,
         ),
     ),
-    MASK=50,
+    MINIBLOCK=dict(
+        TWOWORD=dict(
+            PHRASE=dict(
+                F1LEFT=130,
+                F1RIGHT=131,
+            ),
+            NONPHRASE=dict(
+                F1LEFT=132,
+                F1RIGHT=133,
+            ),
+            NONWORD=dict(
+                F1LEFT=134,
+                F1RIGHT=135,
+            ),
+        ),
+        ONEWORD=dict(
+            WORD=dict(
+                F1=140,
+                F2=141,
+            ),
+            NONWORD=dict(
+                F1=142,
+                F2=143,
+            ),
+        ),
+    ),
+    LOCALIZER=dict(
+        FIXATION=50,
+        ITI=51,
+        SENTENCE=52,
+        NONWORD=53,
+    ),
 )
 
 

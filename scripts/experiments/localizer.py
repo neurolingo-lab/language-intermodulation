@@ -78,6 +78,16 @@ groups = [df for _, df in locwords.groupby("miniblock")]
 rng.shuffle(groups)
 locwords = pd.concat(groups).reset_index(drop=True)
 
+print(f"Loaded {len(locwords)} words for localizer to be presented in {blocktrials} miniblocks.")
+locdur = blocktrials * (
+    spec.LOCALIZER_MINIBLOCK_LEN * spec.LOCALIZER_WORD_DUR + np.mean(spec.LOCALIZER_ITI_BOUNDS) + 1
+)
+dur_min = np.floor(2 * locdur / 60)
+dur_sec = np.round((2 * locdur) % 60)
+print(
+    f"Should take {locdur} seconds per run, for a total of {dur_min} minutes, {dur_sec} seconds."
+)
+
 ########################################
 ## Initialize the window and triggers ##
 ########################################
@@ -124,8 +134,7 @@ fixstim = imst.FixationStim(window)
 
 localizerwords = ims.OneWordMiniblockState(
     next="iti",
-    dur=spec.LOCALIZER_WORD_DUR * spec.LOCALIZER_MINIBLOCK_LEN
-    + spec.LOCALIZER_WORD_DUR / 1.333333,
+    dur=spec.LOCALIZER_WORD_DUR * spec.LOCALIZER_MINIBLOCK_LEN,
     window=window,
     framerate=framerate,
     stim=onewordstim,
@@ -142,7 +151,7 @@ localizerwords = ims.OneWordMiniblockState(
 )
 fixation = ims.FixationState(
     next="words",
-    dur=2.0,
+    dur=1.0,
     stim=fixstim,
     window=window,
     clock=clock,
@@ -179,9 +188,9 @@ states = {
 
 def trigger_val_oneword(state: ims.OneWordMiniblockState, triggers):
     if state.condition == "S":
-        return triggers.ONEWORD.WORD.F1
+        return triggers.LOCALIZER.SENTENCE
     elif state.condition == "N":
-        return triggers.ONEWORD.NONWORD.F1
+        return triggers.LOCALIZER.NONWORD
     else:
         raise ValueError(f"Invalid condition {state.condition}")
 
@@ -228,6 +237,10 @@ def save_and_quit():
     window.close()
     exit()
 
+def debug_miniblock(state):
+    print("miniblock:", state.miniblock_idx)
+    print("word:", state.wordset_idx)
+    return
 
 controller = pc.ExperimentController(
     states=states,
@@ -236,9 +249,10 @@ controller = pc.ExperimentController(
     logger=pe.ExperimentLog(clock),
     clock=clock,
     trial_endstate="iti",
-    N_blocks=1,
+    N_blocks=2,
     K_blocktrials=blocktrials,
     block_calls=[partial(newblock_trig, trigger=trigger, triggers=spec.TRIGGERS)],
+    trial_calls=[partial(debug_miniblock, localizerwords)],
 )
 
 starting = False
@@ -276,4 +290,5 @@ if subinfo["debug"]:
 else:
     controller.logger.save(f"localizer_{subinfo['subject']}_{subinfo['date']}.pkl")
 
+trigger.signal(spec.TRIGGERS.EXPEND)
 window.close()
