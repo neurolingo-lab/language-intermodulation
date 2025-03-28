@@ -94,6 +94,18 @@ blocktrials_1w = onewords["miniblock"].max() + 1
 print(f"Running miniblock task with {blocktrials_2w} miniblocks of two-word stimuli.")
 print(f"Running miniblock task with {blocktrials_1w} miniblocks of one-word stimuli.")
 
+pred_dur = (blocktrials_1w * spec.N_1W_BLOCKS + blocktrials_2w * spec.N_BLOCKS) * (
+    spec.MINIBLOCK_LEN * spec.WORD_DUR
+    + (spec.ITI_BOUNDS[1] + spec.ITI_BOUNDS[0] / 2)
+    + spec.FIXATION_DUR
+) / 60 + (spec.QUERY_DUR * 4 + spec.QUERY_PAUSE_DUR) * (
+    blocktrials_1w * spec.N_1W_BLOCKS + blocktrials_2w * spec.N_BLOCKS
+) / 60
+print(
+    f"Planning to run {blocktrials_1w * spec.N_1W_BLOCKS + blocktrials_2w * spec.N_BLOCKS} miniblocks of stimuli, approx. "
+    f"{pred_dur} minutes of recording"
+)
+
 ########################################
 ## Initialize the window and triggers ##
 ########################################

@@ -234,9 +234,14 @@ def plot_snr(
         ylabel="SNR",
     )
     if tagfreq is not None:
-        if plotpsd:
-            axes[0].axvline(tagfreq, color="r", linestyle="--", alpha=0.5)
-        axes[axidx].axvline(tagfreq, color="r", linestyle="--", alpha=0.5)
+        if isinstance(tagfreq, (list, np.ndarray)):
+            tagfreqs = tagfreq
+        else:
+            tagfreqs = [tagfreq]
+        for freq in tagfreqs:
+            if plotpsd:
+                axes[0].axvline(freq, color="r", linestyle="--", alpha=0.5)
+            axes[axidx].axvline(freq, color="r", linestyle="--", alpha=0.5)
 
     axes[axidx].set_xlim([fmin, fmax])
 
