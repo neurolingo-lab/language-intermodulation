@@ -217,7 +217,7 @@ def plot_snr(
         axes[axidx].fill_between(
             freqs[freq_range], psds_mean - psds_std, psds_mean + psds_std, color="b", alpha=0.2
         )
-        axes[axidx].set(title="PSD spectrum" + titleannot, ylabel="Power Spectral Density [dB]")
+        axes[axidx].set(title="PSD " + titleannot, ylabel="Power Spectral Density [dB]")
         axidx += 1
 
     # SNR spectrum
@@ -229,7 +229,7 @@ def plot_snr(
         freqs[freq_range], snr_mean - snr_std, snr_mean + snr_std, color="r", alpha=0.2
     )
     axes[axidx].set(
-        title="SNR spectrum" + titleannot,
+        title="SNR " + titleannot,
         xlabel="Frequency [Hz]",
         ylabel="SNR",
     )
@@ -240,8 +240,8 @@ def plot_snr(
             tagfreqs = [tagfreq]
         for freq in tagfreqs:
             if plotpsd:
-                axes[0].axvline(freq, color="r", linestyle="--", alpha=0.5)
-            axes[axidx].axvline(freq, color="r", linestyle="--", alpha=0.5)
+                axes[0].axvline(freq, color="purple", linestyle="--", alpha=0.5)
+            axes[axidx].axvline(freq, color="purple", linestyle="--", alpha=0.5)
 
     axes[axidx].set_xlim([fmin, fmax])
 
