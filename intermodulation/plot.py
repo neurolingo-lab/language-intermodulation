@@ -52,7 +52,7 @@ def snr_topo(
 
     for ax, idx in itertopo:
         mne.Epochs._keys_to_idx
-        ax.plot(freqs, snrs[idx], color="w", lw=0.5)[0]
+        ax.plot(freqs, snrs[idx], color="w", lw=0.25)[0]
         ax.set_ylim(ymin, ymax)
         ax.set_xlim(fmin, fmax)
         if show_axes:
